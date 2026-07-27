@@ -4,10 +4,8 @@
 ChebyshevSubdivisionSolver
 ==========================
 
-High-level Process:
---------------------------------------------------------------------------------
+High-level Process
+------------------
 .. currentmodule:: yroots.ChebyshevSubdivisionSolver
 
 .. autofunction:: solveChebyshevSubdivision
-
-

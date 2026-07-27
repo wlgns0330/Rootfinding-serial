@@ -1,0 +1,10 @@
+.. _MultiPower:
+
+==========
+MultiPower
+==========
+
+MultiPower Class
+----------------
+.. currentmodule:: yroots.polynomial
+.. autoclass:: MultiPower
