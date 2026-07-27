@@ -32,7 +32,7 @@ jobs:
         uses: astral-sh/setup-uv@v8.3.2
         with:
           enable-cache: true
-          python-version: "3.14t"
+          python-version: "3.9"
 
       - name: Install dependencies
         run: uv sync --frozen --group docs

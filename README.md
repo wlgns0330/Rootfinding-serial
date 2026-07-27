@@ -14,19 +14,16 @@ This project was supported in part by the National Science Foundation, grant num
 <!-- [![Code Health](https://landscape.io/github/tylerjarvis/RootFinding/pypackage/landscape.svg)](https://landscape.io/github/tylerjarvis/RootFinding/pypackage) -->
 
 ### Requirements
-* Python 3.14t (free-threaded build — see note below)
-* NumPy ≥ 2.4.4
-* Numba ≥ 0.65.1
-* SciPy ≥ 1.17.1
-* SymPy ≥ 1.12
-
-> **Why 3.14t?** YRoots requires the free-threaded build of Python 3.14, which runs without the Global Interpreter Lock (GIL) for better parallelism. The `t` suffix identifies this build — it is a different download from the standard Python 3.14.
+* Python ≥ 3.9
+* NumPy ≥ 1.21
+* Numba ≥ 0.57.0
+* SciPy ≥ 1.10
+* Matplotlib ≥ 3.7
 
 ## Installation
 
 With uv (recommended):
 ```
-uv python install 3.14t
 uv pip install git+https://github.com/tylerjarvis/RootFinding.git
 ```
 Or clone and install for development:
@@ -37,7 +34,7 @@ cd RootFinding
 uv sync
 ```
 
-With pip (requires Python 3.14t already installed):
+With pip:
 
 ```
 pip install git+https://github.com/tylerjarvis/RootFinding.git

@@ -18,15 +18,10 @@ jobs:
       with:
         enable-cache: true
 
-    - name: Set up Python 3.14t
+    - name: Set up Python
       uses: astral-sh/setup-uv@v5
       with:
-        python-version: "3.14t"
-
-    - name: Check Python version
-      run: |
-        uv run python --version
-        uv run python -c "import sysconfig; print('Py_GIL_DISABLED =', sysconfig.get_config_var('Py_GIL_DISABLED'))"
+        python-version: "3.9"
 
     - name: Install dependencies
       run: uv sync --frozen
