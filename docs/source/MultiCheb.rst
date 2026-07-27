@@ -1,0 +1,10 @@
+.. _MultiCheb:
+
+=========
+MultiCheb
+=========
+
+MultiCheb Class
+---------------
+.. currentmodule:: yroots.polynomial
+.. autoclass:: MultiCheb
