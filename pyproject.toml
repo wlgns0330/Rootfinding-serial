@@ -15,14 +15,12 @@ classifiers = [
     "Natural Language :: English",
 ]
 readme = "README.md"
-requires-python = ">=3.14"
+requires-python = ">=3.9"
 dependencies = [
-    "matplotlib",
-    "mpmath",
-    "numba>=0.65.1",
-    "numpy>=2.4.4",
-    "scipy>=1.17.1",
-    "sympy>=1.12",
+    "matplotlib>=3.7",
+    "numba>=0.57.0",
+    "numpy>=1.21",
+    "scipy>=1.10",
 ]
 
 [project.urls]
@@ -30,10 +28,10 @@ Repository = "https://github.com/tylerjarvis/RootFinding"
 
 [dependency-groups]
 dev = [
-    "pytest>=9.0.3",
+    "pytest>=8.4.0",
 ]
 docs = [
-    "sphinx>=8.0",
+    "sphinx>=7.2",
 ]
 
 [tool.hatch.build.targets.wheel]
