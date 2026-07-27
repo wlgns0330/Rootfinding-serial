@@ -1,11 +1,15 @@
+"""Chebyshev subdivision root solver.
+
+Implements the recursive solver invoked by :func:`yroots.Combined_Solver.solve`. The
+core entry point is :func:`solveChebyshevSubdivision`; the rest of the module
+provides the supporting primitives (linear-system bounding, transformation of
+Chebyshev coefficients, and subdivision bookkeeping via :class:`TrackedInterval`).
+"""
 import numpy as np
 from numba import njit, float64
 from numba.types import UniTuple
 from itertools import product
-from scipy.spatial import HalfspaceIntersection, QhullError
-from scipy.optimize import linprog
 from yroots.QuadraticCheck import quadratic_check
-from time import time
 import copy
 import warnings
 
@@ -25,7 +29,7 @@ class SolverOptions():
     all_dim_quadratic_check : bool
         Defaults to False. Whether or not to run quadratic check in dim >= 4.
     maxZoomCount : int
-        Maximum number of zooms allowed before subdividing (prevents infinite infintesimal shrinking)
+        Maximum number of zooms allowed before subdividing (prevents infinite infinitesimal shrinking).
     level : int
         Depth of subdivision for the given interval.
     """
@@ -42,7 +46,7 @@ class SolverOptions():
     def copy(self):
         return copy.copy(self) #Return shallow copy, everything should be a basic type
 
-@njit
+@njit(cache=True)
 def TransformChebInPlace1D(coeffs, alpha, beta):
     """Applies the transformation alpha*x + beta to one dimension of a Chebyshev approximation.
 
@@ -119,7 +123,7 @@ def TransformChebInPlace1D(coeffs, alpha, beta):
     #
     return transformedCoeffs[:maxRow]
 
-@njit
+@njit(cache=True)
 def TransformChebInPlace1DErrorFree(coeffs, alpha, beta):
     """Applies the transformation alpha*x + beta to the Chebyshev polynomial coeffs with minimal error.
 
@@ -218,7 +222,6 @@ def TransformChebInPlace1DErrorFree(coeffs, alpha, beta):
         transformedCoeffs[i] += thisCoeff * (arr3[i] + arr3E[i])
 
         #The last spot
-        #finalVal = alpha*arr2[i]
         finalVal, finalValE = TwoProdWithSplit(alpha, arr2[i], alpha1, alpha2)
         arr3E[maxRow] = finalValE + alpha * arr2E[i]
         arr3[maxRow] = finalVal
@@ -237,7 +240,7 @@ def TransformChebInPlace1DErrorFree(coeffs, alpha, beta):
         arr3E = arr
     return transformedCoeffs[:maxRow]
 
-@njit
+@njit(cache=True)
 def TransformChebInPlace1DErrorFreeSplit(coeffs, betaSign):
     """Applies the transformation 0.5*x +- 0.5 to the Chebyshev polynomial coeffs with minimal error.
 
@@ -318,7 +321,6 @@ def TransformChebInPlace1DErrorFreeSplit(coeffs, betaSign):
         transformedCoeffs[i] += thisCoeff * (arr3[i] + arr3E[i])
 
         #The last spot
-        #finalVal = alpha*arr2[i]
         arr3[maxRow] = arr2[i]/2
         arr3E[maxRow] = arr2E[i] / 2
         transformedCoeffs[maxRow] += thisCoeff * (arr3[maxRow] + arr3E[maxRow])
@@ -378,28 +380,35 @@ class TrackedInterval:
 
     Parameters
     ----------
-    topInterval: numpy array
-        The original interval before any changes
-    interval: numpy array
-        The current interval (lower bound and upper bound for each dimension in order)
-    transforms: list
-        List of the alpha and beta values for all the transformations the interval has undergone
-    ndim: int
-        The number of dimensions of which the interval consists
-    empty: bool
-        Whether the interval is known to contain no roots
-    finalStep: bool
-        Whether the interval is in the final step (zooming in on the bounding box to a point at the end)
-    canThrowOutFinalStep: bool
+    interval : numpy array
+        The starting interval, shape ``(ndim, 2)`` with each row holding the lower and upper bound
+        for one dimension. Stored as both ``topInterval`` (the original) and ``interval`` (the
+        current, mutable bounds).
+
+    Attributes
+    ----------
+    topInterval : numpy array
+        The original interval before any changes.
+    interval : numpy array
+        The current interval (lower bound and upper bound for each dimension in order).
+    transforms : list
+        List of the alpha and beta values for all the transformations the interval has undergone.
+    ndim : int
+        The number of dimensions of which the interval consists.
+    empty : bool
+        Whether the interval is known to contain no roots.
+    finalStep : bool
+        Whether the interval is in the final step (zooming in on the bounding box to a point at the end).
+    canThrowOutFinalStep : bool
         Defaults to False. Whether or not the interval should be thrown out if empty in the final step
         of solving. Changed to True if subdivision occurs in the final step.
-    possibleDuplicateRoots: list
+    possibleDuplicateRoots : list
         Any multiple roots found through subdivision in the final step that would have been
-        returned as just one root before the final step
-    possibleExtraRoot: bool
+        returned as just one root before the final step.
+    possibleExtraRoot : bool
         Defaults to False. Whether or not the interval would have been thrown out during the final step.
-    nextTransformPoints: numpy array
-        Where the midpoint of the next subdivision should be for each dimension
+    nextTransformPoints : numpy array
+        Where the midpoint of the next subdivision should be for each dimension.
     """
     def __init__(self, interval):
         self.topInterval = interval
@@ -420,7 +429,7 @@ class TrackedInterval:
     def addTransform(self, subInterval):
         """Adds the next alpha and beta values to the list transforms and updates the current interval.
 
-        Parameters:
+        Parameters
         -----------
         subInterval : numpy array
             The subinterval to which the current interval is being reduced
@@ -605,7 +614,7 @@ def getLinearTerms(M):
     return A[::-1] # Return linear terms in dimension order.
 
 
-@njit
+@njit(cache=True)
 def linearCheck1(totalErrs, A, consts):
     """Takes A, the linear terms of each function approximation, and makes any possible reduction
         in the interval based on the totalErrs."""
@@ -636,17 +645,19 @@ def BoundingIntervalLinearSystem(Ms, errors, finalStep, macheps = 2**-52):
         The maximum error of chebyshev approximations
     finalStep : bool
         Whether we are in the final step of the algorithm
+    macheps : float
+        Machine epsilon used when bounding the linear system. Defaults to ``2**-52``.
 
     Returns
     -------
     newInterval : numpy array
-        The smaller interval where any root must be
+        The smaller interval where any root must be, shape ``(dim, 2)``.
     changed : bool
-        Whether the interval has shrunk at all
+        Whether the interval has shrunk at all.
     should_stop : bool
-        Whether we should stop subdividing
-    throwout :
-        Whether we should throw out the interval entirely
+        Whether we should stop subdividing.
+    throwout : bool
+        Whether the interval can be discarded entirely (no root is possible inside it).
     """
     if finalStep:
         errors = np.zeros_like(errors)
@@ -752,7 +763,7 @@ def BoundingIntervalLinearSystem(Ms, errors, finalStep, macheps = 2**-52):
             #so return the original interval with changed = False and is_done = wellConditioned
             return np.vstack([a_orig,b_orig]).T, False, wellConditioned or forceShouldStop, False
 
-@njit(UniTuple(float64,2)(float64, float64))
+@njit(UniTuple(float64,2)(float64, float64), cache=True)
 def TwoSum(a,b):
     """Returns x,y such that a+b=x+y exactly, and a+b=x in floating point using numba."""
     x = a+b
@@ -766,7 +777,7 @@ def TwoSum_NoNumba(a,b):
     y = (a-(x-z)) + (b-z)
     return x,y
 
-@njit(UniTuple(float64,2)(float64))
+@njit(UniTuple(float64,2)(float64), cache=True)
 def Split(a):
     """Returns x,y such that a = x+y exactly and a = x in floating point using numba."""
     c = (2**27 + 1) * a
@@ -780,7 +791,7 @@ def Split_NoNumba(a):
     y = a-x
     return x,y
 
-@njit(UniTuple(float64,2)(float64, float64))
+@njit(UniTuple(float64,2)(float64, float64), cache=True)
 def TwoProd(a,b):
     """Returns x,y such that a*b=x+y exactly and a*b=x in floating point using numba."""
     x = a*b
@@ -789,14 +800,14 @@ def TwoProd(a,b):
     y=a2*b2-(((x-a1*b1)-a2*b1)-a1*b2)
     return x,y
 def TwoProd_NoNumba(a,b):
-    """Returns x,y such that a*b=x+y exactly and a*b=x in floating point without usin numba."""
+    """Returns x,y such that a*b=x+y exactly and a*b=x in floating point without using numba."""
     x = a*b
     a1,a2 = Split_NoNumba(a)
     b1,b2 = Split_NoNumba(b)
     y=a2*b2-(((x-a1*b1)-a2*b1)-a1*b2)
     return x,y
 
-@njit(UniTuple(float64,2)(float64, float64, float64, float64))
+@njit(UniTuple(float64,2)(float64, float64, float64, float64), cache=True)
 def TwoProdWithSplit(a,b,a1,a2):
     """Returns x,y such that a*b = x+y exactly and a*b = x in floating point but with a already split."""
     x = a*b
@@ -1239,7 +1250,6 @@ def solvePolyRecursive(Ms, trackedInterval, errors, solverOptions):
     originalIntervalSize = trackedInterval.size()
     #Zoom in while we can
     lastSizes = trackedInterval.dimSize()
-    start_time = time()
     while changed and zoomCount <= solverOptions.maxZoomCount:
         #Zoom in until we stop changing or we hit machine epsilon
         Ms, errors, trackedInterval, changed, should_stop = zoomInOnIntervalIter(Ms, errors, trackedInterval, solverOptions.exact)
@@ -1250,7 +1260,6 @@ def solvePolyRecursive(Ms, trackedInterval, errors, solverOptions):
         if np.all(newSizes >= lastSizes / 2): #Check all dims and use >= to account for a dimension being 0.
             zoomCount += 1
         lastSizes = newSizes
-    finish_time = time()
     if should_stop:
         #Start the final step if the is in the options and we aren't already in it.
         if trackedInterval.finalStep or not solverOptions.useFinalStep:
@@ -1278,14 +1287,13 @@ def solvePolyRecursive(Ms, trackedInterval, errors, solverOptions):
             else:
                 return [trackedInterval], []
         else:
-            #Combine all roots that converged to the same point.
-            allFoundRoots = set()
+            #Combine all roots that converged to the same point. Use interval overlap
+            #(not exact lower-bound match) so singular roots whose sub-intervals differ
+            #by floating-point noise still collapse to one.
             tempResults = []
             for result in resultsAll:
-                point = tuple(result.interval[:,0])
-                if point in allFoundRoots:
+                if any(result.overlapsWith(kept) for kept in tempResults):
                     continue
-                allFoundRoots.add(point)
                 tempResults.append(result)
             for result in tempResults:
                 if len(result.possibleDuplicateRoots) > 0:
@@ -1300,13 +1308,19 @@ def solvePolyRecursive(Ms, trackedInterval, errors, solverOptions):
     else:
         #Otherwise, Subdivide
         if solverOptions.level == 15:
-            warnings.warn(f"High subdivision depth!\nSubdivision on the search interval has now reached" +
-                          " at least depth 15. Runtime may be prolonged.")
+            warnings.warn(
+                "High subdivision depth!\n"
+                "Subdivision on the search interval has now reached "
+                "at least depth 15. Runtime may be prolonged."
+            )
         elif solverOptions.level == 25:
-            warnings.warn(f"Extreme subdivision depth!\nSubdivision on the search interval has now reached" +
-                          " at least depth 25, which is unusual. The solver may not finish running." +
-                          "Ensure the input functions meet the requirements of being continuous, smooth," +
-                          "and having only finitely many simple roots on the search interval.")
+            warnings.warn(
+                "Extreme subdivision depth!\n"
+                "Subdivision on the search interval has now reached "
+                "at least depth 25, which is unusual. The solver may not finish running. "
+                "Ensure the input functions meet the requirements of being continuous, "
+                "smooth, and having only finitely many simple roots on the search interval."
+            )
         resultInterior, resultExterior = [], []
         #Get the new intervals and polynomials
         allMs, allErrors, allIntervals = getSubdivisionIntervals(Ms, errors, trackedInterval, solverOptions.exact, solverOptions.level)
@@ -1395,10 +1409,10 @@ def solveChebyshevSubdivision(Ms, errors, verbose = False, returnBoundingBoxes =
         The max error of the chebyshev approximation from the function on the interval
     verbose : bool
         Defaults to False. Whether or not to output progress of solving to the terminal.
-    returnBoundingBoxes : bool (Optional)
+    returnBoundingBoxes : bool
         Defaults to False. If True, returns the bounding boxes around each root as well as the roots.
     exact : bool
-        Whether transformations should be done with higher precision to minimize error.
+        Defaults to False. Whether transformations should be done with higher precision to minimize error.
     constant_check : bool
         Defaults to True. Whether or not to run constant term check after each subdivision.
     low_dim_quadratic_check : bool
@@ -1409,9 +1423,10 @@ def solveChebyshevSubdivision(Ms, errors, verbose = False, returnBoundingBoxes =
     Returns
     -------
     roots : list
-        The roots of the system of functions on the interval given to Combined Solver
-    boundingBoxes : list of numpy arrays (optional)
-        List of intervals for each root in which the root is bound to lie.
+        The roots of the system of functions on the interval given to Combined Solver. Returned
+        alone when ``returnBoundingBoxes`` is False.
+    boundingBoxes : list of TrackedInterval
+        Only returned when ``returnBoundingBoxes`` is True. Bounding intervals for each root.
     """
     #Assert that we have n nD polys
     if np.any([M.ndim != len(Ms) for M in Ms]):
@@ -1434,6 +1449,16 @@ def solveChebyshevSubdivision(Ms, errors, verbose = False, returnBoundingBoxes =
     b1, b2 = solvePolyRecursive(Ms, originalInterval, errors, solverOptions)
 
     boundingIntervals = b1 + b2
+    # Dedup overlapping final bounding intervals. The in-recursion merge only compares
+    # siblings on resultExterior, so singular roots reached from multiple recursion
+    # branches survive as separate interior intervals. Overlapping final boxes cannot
+    # enclose distinct roots, so collapse them here.
+    dedupedIntervals = []
+    for interval in boundingIntervals:
+        if not any(interval.overlapsWith(kept) for kept in dedupedIntervals):
+            dedupedIntervals.append(interval)
+    boundingIntervals = dedupedIntervals
+
     roots = []
     hasDupRoots = False
     hasExtraRoots = False
