@@ -2,7 +2,7 @@
 
 YRoots is a Python package designed for numerical rootfinding of multivariate systems of equations.
 
-For a tutorial on YRoots syntax, set-up and examples on how to use it with different function systems, see [YRoots Tutorial](https://github.com/tylerjarvis/RootFinding/blob/main/YRootsTutorial.ipynb) and for a more detailed demonstration of the code's capabilities on solving more challenging problems, see [YRoots Demo](https://github.com/tylerjarvis/RootFinding/blob/main/YRootsDemo.ipynb). 
+For a tutorial on YRoots syntax, set-up, and examples on how to use it with different function systems, see [Combined Notebook](https://github.com/tylerjarvis/RootFinding/blob/main/CombinedNotebook.ipynb). 
 
 Documentation is posted at https://tylerjarvis.github.io/RootFinding/
 
@@ -13,26 +13,37 @@ This project was supported in part by the National Science Foundation, grant num
 <!-- [![PyPI version](https://badge.fury.io/py/RootFinding.svg)](https://badge.fury.io/py/RootFinding) -->
 <!-- [![Code Health](https://landscape.io/github/tylerjarvis/RootFinding/pypackage/landscape.svg)](https://landscape.io/github/tylerjarvis/RootFinding/pypackage) -->
 
-<!-- [![Build Status](https://travis-ci.com/tylerjarvis/RootFinding.svg?branch=master)](https://travis-ci.com/tylerjarvis/RootFinding) -->
-<!-- [![codecov](https://codecov.io/gh/mtmoncur/tylerjarvis/branch/master/graphs/badge.svg)](https://codecov.io/gh/tylerjarvis/RootFinding) -->
-<!-- [![PyPI version](https://badge.fury.io/py/RootFinding.svg)](https://badge.fury.io/py/RootFinding) -->
-<!-- [![Code Health](https://landscape.io/github/tylerjarvis/RootFinding/pypackage/landscape.svg)](https://landscape.io/github/tylerjarvis/RootFinding/pypackage) -->
-
 ### Requirements
-At least:
-* Python 3.10
-* Pip 21.1
-* Numpy 1.22.0
-* Numba 0.37.0
-* Scipy 1.10.0
-* Sympy 1.5.1
+* Python 3.14t (free-threaded build — see note below)
+* NumPy ≥ 2.4.4
+* Numba ≥ 0.65.1
+* SciPy ≥ 1.17.1
+* SymPy ≥ 1.12
+
+> **Why 3.14t?** YRoots requires the free-threaded build of Python 3.14, which runs without the Global Interpreter Lock (GIL) for better parallelism. The `t` suffix identifies this build — it is a different download from the standard Python 3.14.
 
 ## Installation
 
-`$ pip install git+https://github.com/tylerjarvis/RootFinding.git`
+With uv (recommended):
+```
+uv python install 3.14t
+uv pip install git+https://github.com/tylerjarvis/RootFinding.git
+```
+Or clone and install for development:
 
-The package can then by imported using `import yroots`.
+```
+git clone https://github.com/tylerjarvis/RootFinding.git
+cd RootFinding
+uv sync
+```
 
+With pip (requires Python 3.14t already installed):
+
+```
+pip install git+https://github.com/tylerjarvis/RootFinding.git
+```
+
+The package can then be imported using `import yroots`.
 (We are currently working on adding the yroots package to The Python Package Index)
 
 ## Usage
@@ -54,7 +65,7 @@ b = np.array([0,1]) #upper bounds on x and y
 yr.solve([f,g],a,b)
 ```
 
-If the system includes polynomials, there are specialized `Polynomial` objects which may be allow for faster solving. See [Combined Notebook](https://github.com/tylerjarvis/RootFinding/blob/main/CombinedNotebook.ipynb) for more details.
+If the system includes polynomials, there are specialized `Polynomial` objects which may allow for faster solving. See [Combined Notebook](https://github.com/tylerjarvis/RootFinding/blob/main/CombinedNotebook.ipynb) for more details.
 
 
 ## Examples of Applications

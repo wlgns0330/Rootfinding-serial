@@ -1,3 +1,11 @@
+"""Quadratic subinterval checks used by the Chebyshev subdivision solver.
+
+Each ``quadratic_check_*`` routine extracts the quadratic part of a Chebyshev
+coefficient tensor and bounds it against the absolute sum of the remaining
+terms. If those bounds rule out a zero on the current subinterval, the check
+returns ``True`` so the solver can discard the box. The :func:`quadratic_check`
+dispatcher picks the dimension-specialized routine.
+"""
 import numpy as np
 import itertools
 from scipy import linalg as la
@@ -23,32 +31,49 @@ def get_fixed_vars(dim):
                                              for r in range(dim-1,0,-1)))
 
 def quadratic_check(test_coeff, tol, nd_check=False):
+    """Dispatch to the dimension-specialized quadratic check.
+
+    Parameters
+    ----------
+    test_coeff : numpy array
+        The coefficient matrix of the polynomial to check.
+    tol : float
+        The bound of the sup norm error of the Chebyshev approximation.
+    nd_check : bool
+        If True, always use :func:`quadratic_check_nd` regardless of dimension. Defaults to False,
+        which dispatches to :func:`quadratic_check_2D` or :func:`quadratic_check_3D` when possible.
+
+    Returns
+    -------
+    bool
+        True if the polynomial is guaranteed to have no zero on the unit box, False otherwise.
+    """
     if test_coeff.ndim == 2 and not nd_check:
         return quadratic_check_2D(test_coeff, tol)
     elif test_coeff.ndim == 3 and not nd_check:
         return quadratic_check_3D(test_coeff, tol)
     else:
         return quadratic_check_nd(test_coeff, tol)
-    #return quadratic_check_nd(test_coeff, tol)
 
 def quadratic_check_2D(test_coeff, tol):
-    """One of subinterval_checks
+    """2D specialization of :func:`quadratic_check`.
 
-    Finds the min of the absolute value of the quadratic part, and compares to the sum of the
-    rest of the terms. There can't be a root if min(extreme_values) > other_sum	or if
-    max(extreme_values) < -other_sum. We can short circuit and finish
-    faster as soon as we find one value that is < other_sum and one value that > -other_sum.
+    Finds the min of the absolute value of the quadratic part and compares it to the sum of
+    the remaining terms. There can't be a root if ``min(extreme_values) > other_sum`` or if
+    ``max(extreme_values) < -other_sum``. Short-circuits as soon as one value below
+    ``other_sum`` and one value above ``-other_sum`` are found.
 
     Parameters
     ----------
     test_coeff : numpy array
-        The coefficient matrix of the polynomial to check
-    tol: float
-        The bound of the sup norm error of the chebyshev approximation.
+        The coefficient matrix of the polynomial to check.
+    tol : float
+        The bound of the sup norm error of the Chebyshev approximation.
 
     Returns
     -------
-    True if the function is guaranteed to never be zero in the interval. False otherwise.
+    bool
+        True if the polynomial is guaranteed to have no zero on the unit box, False otherwise.
     """
     if test_coeff.ndim != 2:
         return False
@@ -79,7 +104,7 @@ def quadratic_check_2D(test_coeff, tol):
     other_sum = np.sum(np.abs(test_coeff)) - sum([fabs(coeff) for coeff in c]) + tol
 
     # Function for evaluating c0 + c1 T_1(x) + c2 T_1(y) +c3 T_2(x) + c4 T_1(x)T_1(y) + c5 T_2(y)
-    # Use the Horner form because it is much faster, also do any repeated computatons in advance
+    # Use the Horner form because it is much faster, also do any repeated computations in advance
     k0 = c[0]-c[3]-c[5]
     k3 = 2*c[3]
     k5 = 2*c[5]
@@ -182,25 +207,24 @@ def quadratic_check_2D(test_coeff, tol):
     return True
 
 def quadratic_check_3D(test_coeff, tol):
-    """One of subinterval_checks
+    """3D specialization of :func:`quadratic_check`.
 
-    Finds the min of the absolute value of the quadratic part, and compares to the sum of the
-    rest of the terms.  There can't be a root if min(extreme_values) > other_sum	or if
-    max(extreme_values) < -other_sum. We can short circuit and finish
-    faster as soon as we find one value that is < other_sum and one value that > -other_sum.
+    Finds the min of the absolute value of the quadratic part and compares it to the sum of
+    the remaining terms. There can't be a root if ``min(extreme_values) > other_sum`` or if
+    ``max(extreme_values) < -other_sum``. Short-circuits as soon as one value below
+    ``other_sum`` and one value above ``-other_sum`` are found.
 
     Parameters
     ----------
     test_coeff : numpy array
-        The coefficient matrix of the polynomial to check
-    tol: float
-        The bound of the sup norm error of the chebyshev approximation.
+        The coefficient matrix of the polynomial to check.
+    tol : float
+        The bound of the sup norm error of the Chebyshev approximation.
 
     Returns
     -------
-    mask : list
-        A list of the results of each interval. False if the function is guarenteed to never be zero
-        in the unit box, True otherwise
+    bool
+        True if the polynomial is guaranteed to have no zero on the unit box, False otherwise.
     """
     if test_coeff.ndim != 3:
         return False
@@ -520,23 +544,24 @@ def quadratic_check_3D(test_coeff, tol):
     return True
 
 def quadratic_check_nd(test_coeff, tol):
-    """One of subinterval_checks
+    """N-dimensional specialization of :func:`quadratic_check`.
 
-    Finds the min of the absolute value of the quadratic part, and compares to the sum of the
-    rest of the terms. There can't be a root if min(extreme_values) > other_sum	or if
-    max(extreme_values) < -other_sum. We can short circuit and finish
-    faster as soon as we find one value that is < other_sum and one value that > -other_sum.
+    Finds the min of the absolute value of the quadratic part and compares it to the sum of
+    the remaining terms. There can't be a root if ``min(extreme_values) > other_sum`` or if
+    ``max(extreme_values) < -other_sum``. Short-circuits as soon as one value below
+    ``other_sum`` and one value above ``-other_sum`` are found.
 
     Parameters
     ----------
-    test_coeff_in : numpy array
-        The coefficient matrix of the polynomial to check
-    tol: float
-        The bound of the sup norm error of the chebyshev approximation.
+    test_coeff : numpy array
+        The coefficient matrix of the polynomial to check.
+    tol : float
+        The bound of the sup norm error of the Chebyshev approximation.
 
     Returns
     -------
-    True if there is guaranteed to be no root in the interval, False otherwise
+    bool
+        True if the polynomial is guaranteed to have no zero on the unit box, False otherwise.
     """
     #get the dimension and make sure the coeff tensor has all the right
     # quadratic coeff spots, set to zero if necessary
@@ -545,7 +570,7 @@ def quadratic_check_nd(test_coeff, tol):
     test_coeff = np.pad(test_coeff.copy(), padding, mode='constant')
     interval = [-np.ones(dim), np.ones(dim)]
 
-    #Possible extrema of qudaratic part are where D_xk = 0 for some subset of the variables xk
+    #Possible extrema of quadratic part are where D_xk = 0 for some subset of the variables xk
     # with the other variables are fixed to a boundary value
     #Dxk = c[0,...,0,1,0,...0] (k-spot is 1) + 4c[0,...,0,2,0,...0] xk (k-spot is 2)
     #       + \Sum_{j\neq k} xj c[0,...,0,1,0,...,0,1,0,...0] (k and j spot are 1)
