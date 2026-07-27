@@ -227,8 +227,7 @@ def test_exact_option():
     Then we make sure we got the same roots between the two, and that those roots are correct.
     """
 
-    THIS_DIR = Path(__file__).resolve().parent          # .../tests
-    ROOT_DIR = THIS_DIR.parent                          # repo root (if tests/ is at root)
+    ROOT_DIR = Path(__file__).resolve().parent
     actual_roots_path = ROOT_DIR / "Polished_results" / "polished_2.3.npy"
     chebfun_roots_path = ROOT_DIR / "Chebfun_results" / "test_roots_2.3.csv"
 
