@@ -1457,6 +1457,7 @@ def solveChebyshevSubdivision(Ms, errors, verbose = False, returnBoundingBoxes =
     # boundingIntervals = dedupedIntervals
 
     roots = []
+    rootBoxes = []
     hasDupRoots = False
     hasExtraRoots = False
     for interval in boundingIntervals:
@@ -1467,9 +1468,11 @@ def solveChebyshevSubdivision(Ms, errors, verbose = False, returnBoundingBoxes =
             hasExtraRoots = True
         if len(interval.possibleDuplicateRoots) > 0:
             roots += interval.possibleDuplicateRoots
+            rootBoxes += [interval] * len(interval.possibleDuplicateRoots)
             hasDupRoots = True
         else:
             roots.append(interval.getFinalPoint())
+            rootBoxes.append(interval)
     #Warn if extra or duplicate roots
     if hasExtraRoots:
         warnings.warn(f"Might Have Extra Roots! See Bounding Boxes for details!")
@@ -1481,6 +1484,6 @@ def solveChebyshevSubdivision(Ms, errors, verbose = False, returnBoundingBoxes =
         finish_string = '\n' + f"Found {len(roots)} roots"
         print((finish_string if len(roots) != 1 else finish_string[:-1]),end='\n\n')
     if returnBoundingBoxes:
-        return roots, boundingIntervals
+        return roots, rootBoxes
     else:
         return roots

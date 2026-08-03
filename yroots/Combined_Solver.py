@@ -151,7 +151,12 @@ def solve(funcs,a=-1,b=1, verbose = False, returnBoundingBoxes = False, exact=Fa
     
     #If the bounding box is the entire interval, subdivide it!
     usingSubdivision = np.all(b-a > minBoundingIntervalSize)
-    if len(boundingBoxes) == 1 and np.all(boundingBoxes[0].finalDimSize() == 2) and usingSubdivision:
+    #boundingBoxes repeats a box once per root it could not separate; work over distinct boxes.
+    distinctBoxes = []
+    for boundingBox in boundingBoxes:
+        if not any(boundingBox is seen for seen in distinctBoxes):
+            distinctBoxes.append(boundingBox)
+    if len(distinctBoxes) == 1 and np.all(distinctBoxes[0].finalDimSize() == 2) and usingSubdivision:
         #Subdivide the interval and resolve to get better resolution across different parts of the interval
         yroots, boundingBoxes = [], []
         for val in itertools.product([False, True], repeat=len(a)):
@@ -182,7 +187,7 @@ def solve(funcs,a=-1,b=1, verbose = False, returnBoundingBoxes = False, exact=Fa
     #If any of the bounding boxes is too large, re-solve that box.
     finalBoxes = []
     finalRoots = []
-    for box in boundingBoxes:
+    for box in distinctBoxes:
         #Get the relative max size in each dimension. If a or b > 1 in magnitude, minBoundingIntervalSize is a relative number.
         #If they are < 1 in magnitude, it is an absolute number.
         newA, newB = ChebyshevApproximator.transform(box.finalInterval.T,a,b)
@@ -197,12 +202,16 @@ def solve(funcs,a=-1,b=1, verbose = False, returnBoundingBoxes = False, exact=Fa
                 finalBoxes.append(boxes)
         else:
             #Transform back
-            finalBoxes.append([ChebyshevApproximator.transform(box.finalInterval.T,a,b).T])
+            transformedBox = ChebyshevApproximator.transform(box.finalInterval.T,a,b).T
             #Get the roots from this box
             if len(box.possibleDuplicateRoots) > 0:
-                finalRoots.append(ChebyshevApproximator.transform(np.array(box.possibleDuplicateRoots),a,b))
+                dupRoots = ChebyshevApproximator.transform(np.array(box.possibleDuplicateRoots),a,b)
+                finalRoots.append(dupRoots)
+                #One box, several roots it could not separate: repeat it to stay aligned.
+                finalBoxes.append(np.repeat(transformedBox[np.newaxis], len(dupRoots), axis=0))
             else:
                 finalRoots.append(ChebyshevApproximator.transform(box.getFinalPoint(),a,b))
+                finalBoxes.append([transformedBox])
     if len(finalBoxes) != 0:
         finalBoxes = np.vstack(finalBoxes)
     if len(finalRoots) != 0:
