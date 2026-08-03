@@ -1446,16 +1446,6 @@ def solveChebyshevSubdivision(Ms, errors, verbose = False, returnBoundingBoxes =
     b1, b2 = solvePolyRecursive(Ms, originalInterval, errors, solverOptions)
 
     boundingIntervals = b1 + b2
-    # # Dedup overlapping final bounding intervals. The in-recursion merge only compares
-    # # siblings on resultExterior, so singular roots reached from multiple recursion
-    # # branches survive as separate interior intervals. Overlapping final boxes cannot
-    # # enclose distinct roots, so collapse them here.
-    # dedupedIntervals = []
-    # for interval in boundingIntervals:
-    #     if not any(interval.overlapsWith(kept) for kept in dedupedIntervals):
-    #         dedupedIntervals.append(interval)
-    # boundingIntervals = dedupedIntervals
-
     roots = []
     rootBoxes = []
     hasDupRoots = False
