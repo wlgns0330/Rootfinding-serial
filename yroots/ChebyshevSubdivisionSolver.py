@@ -726,9 +726,6 @@ def BoundingIntervalLinearSystem(Ms, errors, finalStep, macheps = 2**-52):
         #Add error and bound
         a -= widthToAdd
         b += widthToAdd
-        if np.any(a > b):
-            with open("num_of_times","a") as file:
-                file.write("1\n")
         throwOut = np.any(a > b) or np.any(a > 1) or np.any(b < -1)
         a[a < -1] = -1
         b[b < -1] = -1
@@ -1287,13 +1284,13 @@ def solvePolyRecursive(Ms, trackedInterval, errors, solverOptions):
             else:
                 return [trackedInterval], []
         else:
-            #Combine all roots that converged to the same point. Use interval overlap
-            #(not exact lower-bound match) so singular roots whose sub-intervals differ
-            #by floating-point noise still collapse to one.
+            allFoundRoots = set()
             tempResults = []
             for result in resultsAll:
-                if any(result.overlapsWith(kept) for kept in tempResults):
+                point = tuple(result.interval[:,0])
+                if point in allFoundRoots:
                     continue
+                allFoundRoots.add(point)
                 tempResults.append(result)
             for result in tempResults:
                 if len(result.possibleDuplicateRoots) > 0:
