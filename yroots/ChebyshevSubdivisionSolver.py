@@ -1021,6 +1021,8 @@ def getInverseOrder(order):
 def getSubdivisionDims(Ms,trackedInterval,level):
     """Decides which dimensions to subdivide in and in what order.
 
+    
+
     Parameters
     ----------
     Ms : list of numpy arrays
@@ -1395,6 +1397,23 @@ def solvePolyRecursive(Ms, trackedInterval, errors, solverOptions):
                 resultInterior.append(tempInterval)
         return resultInterior, newResultExterior
 
+def getRootsInInterval(interval):
+    """Gets the roots that a final bounding interval reports.
+
+    Parameters
+    ----------
+    interval : TrackedInterval
+        The bounding interval to read the roots from.
+
+    Returns
+    -------
+    roots : list
+        The roots this interval reports. Always contains at least one root.
+    """
+    if len(interval.possibleDuplicateRoots) > 0:
+        return list(interval.possibleDuplicateRoots)
+    return [interval.getFinalPoint()]
+
 def solveChebyshevSubdivision(Ms, errors, verbose = False, returnBoundingBoxes = False, exact = False, constant_check = True, low_dim_quadratic_check = True, all_dim_quadratic_check = False):
     """Initiates shrinking and subdivision recursion and returns the roots and bounding boxes.
 
@@ -1447,22 +1466,19 @@ def solveChebyshevSubdivision(Ms, errors, verbose = False, returnBoundingBoxes =
 
     boundingIntervals = b1 + b2
     roots = []
-    rootBoxes = []
     hasDupRoots = False
     hasExtraRoots = False
     for interval in boundingIntervals:
-        #TODO: Figure out the best way to return the bounding intervals.
         #Right now interval.finalInterval is the interval where we say the root is.
         interval.getFinalInterval()
         if interval.possibleExtraRoot:
             hasExtraRoots = True
         if len(interval.possibleDuplicateRoots) > 0:
-            roots += interval.possibleDuplicateRoots
-            rootBoxes += [interval] * len(interval.possibleDuplicateRoots)
             hasDupRoots = True
-        else:
-            roots.append(interval.getFinalPoint())
-            rootBoxes.append(interval)
+        #Repeat the interval once per root it reports, so roots and rootBoxes are
+        #index-aligned and rootBoxes[i] is the box that produced roots[i].
+        intervalRoots = getRootsInInterval(interval)
+        roots += intervalRoots
     #Warn if extra or duplicate roots
     if hasExtraRoots:
         warnings.warn(f"Might Have Extra Roots! See Bounding Boxes for details!")
@@ -1474,6 +1490,6 @@ def solveChebyshevSubdivision(Ms, errors, verbose = False, returnBoundingBoxes =
         finish_string = '\n' + f"Found {len(roots)} roots"
         print((finish_string if len(roots) != 1 else finish_string[:-1]),end='\n\n')
     if returnBoundingBoxes:
-        return roots, rootBoxes
+        return roots, boundingIntervals
     else:
         return roots
