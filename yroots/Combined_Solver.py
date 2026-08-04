@@ -151,7 +151,6 @@ def solve(funcs,a=-1,b=1, verbose = False, returnBoundingBoxes = False, exact=Fa
     
     #If the bounding box is the entire interval, subdivide it!
     usingSubdivision = np.all(b-a > minBoundingIntervalSize)
-    #boundingBoxes repeats a box once per root it could not separate; work over distinct boxes.
     if len(boundingBoxes) == 1 and np.all(boundingBoxes[0].finalDimSize() == 2) and usingSubdivision:
         #Subdivide the interval and resolve to get better resolution across different parts of the interval
         yroots, boundingBoxes = [], []
@@ -159,7 +158,7 @@ def solve(funcs,a=-1,b=1, verbose = False, returnBoundingBoxes = False, exact=Fa
             #Split almost in half
             #TODO: Do we need to combine bounding boxes in this step of the recursion as well?
             #      For now it seems safe enough to assume we won't have any roots on the midpoints.
-            midPoint = (a + b) * 0.51234912839471234
+            midPoint = a + (b - a) * 0.51234912839471234
             newA = np.where(val, midPoint, a)
             newB = np.where(val, b, midPoint)
             #Solve recursively
