@@ -74,6 +74,17 @@ def test_integer_coefficients_are_cast_to_float():
         assert cheb.coeff.dtype == np.float64
 
 
+def test_boolean_coefficients_are_cast_to_float():
+    """Booleans are not an integer subtype, so they need their own cast.
+
+    Left as bools, np.zeros_like in the transformation stays boolean and numba rejects
+    the in place add of a float64 array into it.
+    """
+    poly = MultiCheb(np.array([[False, True], [True, False]]))
+    assert poly.coeff.dtype == np.float64
+    assert np.array_equal(poly.coeff, [[0.0, 1.0], [1.0, 0.0]])
+
+
 def test_float_coefficients_are_left_alone():
     coeff = np.array([[1.5, 2.5], [3.5, 4.5]])
     poly = MultiPower(coeff, clean_zeros=False)
