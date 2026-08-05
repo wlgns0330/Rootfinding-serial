@@ -67,11 +67,15 @@ def test_integer_coefficients_are_cast_to_float():
     Regression test: the cast used to be assigned to a local variable, so integer
     coefficients survived into the solver and made yroots.solve raise a casting error.
     """
-    for dtype in (np.int8, np.int16, np.int32, np.int64):
+    signed = (np.int8, np.int16, np.int32, np.int64)
+    unsigned = (np.uint8, np.uint16, np.uint32, np.uint64)
+    for dtype in signed + unsigned:
         poly = MultiPower(np.array([[1, 2], [3, 4]], dtype=dtype))
         assert poly.coeff.dtype == np.float64
+        assert np.array_equal(poly.coeff, [[1.0, 2.0], [3.0, 4.0]])
         cheb = MultiCheb(np.array([1, 2, 3], dtype=dtype))
         assert cheb.coeff.dtype == np.float64
+        assert np.array_equal(cheb.coeff, [1.0, 2.0, 3.0])
 
 
 def test_float_coefficients_are_left_alone():

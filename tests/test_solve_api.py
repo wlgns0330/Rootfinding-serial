@@ -99,6 +99,11 @@ def test_integer_coefficient_polynomials_are_accepted():
     roots = solve(power, -1, 1)
     assert np.allclose(np.sort(np.ravel(roots)), [-0.5, 0.5], atol=1e-10)
 
+    # narrow and unsigned integer types crash the same way if they are not cast
+    for dtype in (np.int8, np.uint8, np.uint32):
+        roots = solve(yr.MultiCheb(coeff.astype(dtype)), -1, 1)
+        assert np.allclose(np.sort(np.ravel(roots)), expected, atol=1e-10)
+
 
 ############################### results ######################################
 
