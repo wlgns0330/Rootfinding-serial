@@ -694,11 +694,15 @@ def BoundingIntervalLinearSystem(Ms, errors, finalStep, macheps = 2**-52):
     #This loop will only execute the second time if the interval was not changed on the first iteration and it needs to run again with tighter errors
     #Calculate the SVD outside of the for loop because it doesn't change
     U, S, Vh = np.linalg.svd(A)
-    #S[0] == 0 means A is the zero matrix. Guard the division so the ratio (and everything
-    #derived from it below) doesn't become nan.
-    condNum = S[-1]/S[0] if S[0] > 0 else 0.
-    wellConditioned = S[0] > 0 and condNum > 1e-10
-    #Add this width to the new intervals we find to avoid rounding error throwing out roots
+    #Test the reciprocal condition number rather than the condition number itself, so that
+    #a singular A gives 0 instead of a divide by zero. S[0] == 0 means A is all zeros.
+    invCondNum = S[-1]/S[0] if S[0] > 0 else 0.
+    wellConditioned = S[0] > 0 and invCondNum > 1e-10
+    #Add this width to the new intervals we find to avoid rounding error throwing out roots.
+    #Solving with Ainv below loses about condNum digits, so the interval it produces has to be
+    #padded by that much. The bound from linearCheck1 is computed entrywise and only loses a
+    #couple of ulps, so when we fall back on it alone the padding stays at machine precision.
+    condNum = 1/invCondNum if wellConditioned else 1.
     widthToAdd = max(condNum,2)*macheps
     if wellConditioned:
         #Only invert A when it is safe to do so. Otherwise S has (nearly) zero entries and the

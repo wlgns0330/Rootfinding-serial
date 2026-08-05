@@ -167,6 +167,22 @@ def test_an_asymmetric_search_box():
     assert np.allclose(roots[0], [np.pi / 3, np.pi / 3], atol=1e-10)
 
 
+@pytest.mark.parametrize("eps", [1e-3, 1e-5, 1e-7])
+def test_ill_conditioned_system_keeps_its_root(eps):
+    """Regression test: ill conditioned systems used to lose their root entirely.
+
+    The interval padding exists so rounding error cannot discard a root, but it was
+    computed from the reciprocal condition number and so never grew past machine
+    precision. These two nearly parallel lines meet at (0.3, 0) and were thrown out.
+    """
+    f = lambda x, y: x + y - 0.3
+    g = lambda x, y: x + (1 + eps) * y - 0.3
+    roots = solve([f, g], [-1, -1], [1, 1])
+
+    assert len(roots) == 1, f"root lost for a system with condition number ~{1/eps:.0e}"
+    assert np.allclose(roots[0], [0.3, 0.0], atol=1e-6)
+
+
 ############################### empty results ################################
 
 def test_no_roots_returns_an_empty_array_of_the_right_shape():

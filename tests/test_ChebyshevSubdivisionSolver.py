@@ -237,6 +237,28 @@ def test_bounding_interval_ignores_the_error_on_the_final_step():
     assert final_size < loose_size
 
 
+def test_padding_scales_with_the_condition_number():
+    """Regression test: the padding term was computed from the reciprocal condition number.
+
+    Since that ratio never exceeds 1, max(condNum, 2) was always 2 and the padding stayed
+    at machine precision no matter how ill conditioned the system was.
+    """
+    macheps = 2.0 ** -52
+
+    def padding(eps):
+        """Width added to the interval for a system with condition number about 1/eps."""
+        # Two nearly parallel lines through the origin: x + y and x + (1+eps)y.
+        Ms = [np.array([[0., 1.], [1., 0.]]), np.array([[0., 1. + eps], [1., 0.]])]
+        interval = BoundingIntervalLinearSystem(Ms, np.array([0., 0.]), False)[0]
+        # The root is at the origin and the errors are 0, so the interval is pure padding.
+        return np.max(interval[:, 1])
+
+    well = padding(1e-2)
+    ill = padding(1e-8)
+    assert well >= 2 * macheps
+    assert ill > well, "an ill conditioned system must be padded more, not the same"
+
+
 def test_bounding_interval_does_not_modify_the_errors_it_is_given():
     Ms = [linear_cheb(2, 0, 0.5), linear_cheb(2, 1, -0.25)]
     errors = np.array([0.1, 0.1])
