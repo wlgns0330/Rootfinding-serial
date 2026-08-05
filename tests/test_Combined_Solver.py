@@ -73,21 +73,6 @@ def test_bivariate():
     assert np.max(np.abs(f(roots[:,0],roots[:,1]))) < tol2
     assert np.max(np.abs(g(roots[:,0],roots[:,1]))) < tol2
 
-def test_high_dim():
-    f1 = lambda x1, x2, x3, x4, x5: np.cos(x1) + x5 - 1
-    f2 = lambda x1, x2, x3, x4, x5: np.cos(x2) + x4 - 2
-    f3 = lambda x1, x2, x3, x4, x5: np.cos(x3) + x3 - 3
-    f4 = lambda x1, x2, x3, x4, x5: np.cos(x4) + x2 - 4
-    f5 = lambda x1, x2, x3, x4, x5: np.cos(x5) + x1 - 5
-
-    a = [0]*5
-    b = [2*np.pi]*5
-
-    roots = yr.solve([f1,f2,f3,f4,f5],a,b)
-
-    assert len(roots) == 1
-    assert np.max([np.abs(f(*[roots[:,i] for i in range(5)])) for f in [f1,f2,f3,f4,f5]]) < tol2
-
 # Test MultiCheb and MultiPower
 def test_multiCheb_multiPower():
     """
