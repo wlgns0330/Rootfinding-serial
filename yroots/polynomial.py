@@ -139,11 +139,11 @@ class Polynomial(object):
         if isinstance(coeff,list):
             coeff = np.array(coeff)
         if isinstance(coeff,np.ndarray):
-            self.coeff = coeff
-            # If coeff has integer coefficients,
+            # If coeff has integer (or boolean) coefficients,
             # cast as numpy floats for jit compilation
-            if coeff.dtype == np.int32 or coeff.dtype == np.int64:
+            if np.issubdtype(coeff.dtype, np.integer) or coeff.dtype == bool:
                 coeff = coeff.astype(np.float64)
+            self.coeff = coeff
         else:
             raise ValueError('Invalid input for Polynomial class object')
         if clean_zeros:
@@ -260,7 +260,7 @@ class MultiCheb(Polynomial):
 
     >>> f = yroots.MultiCheb([0,0,4,1])
     >>> print(f)
-    [-4.   0.   5.5  0.   0.   0.   3. ]
+    [0. 0. 4. 1.]
 
 
     Parameters
@@ -365,7 +365,7 @@ class MultiCheb(Polynomial):
             cc = c.reshape(c.shape + (1,)*xyz[:,i].ndim)
             c = chebval2(xyz[:,i] ,cc)
 
-        if np.product(c.shape)==1:
+        if np.prod(c.shape)==1:
             return c[0]
         else:
             return c
@@ -386,7 +386,7 @@ class MultiCheb(Polynomial):
         '''
         super(MultiCheb, self).__call__(point)
 
-        out = np.empty(self.dim,dtype="complex_")
+        out = np.empty(self.dim,dtype=np.complex128)
         if self.jac is None:
             jac = list()
             for i in range(self.dim):
@@ -551,7 +551,7 @@ class MultiPower(Polynomial):
             cc = c.reshape(c.shape + (1,)*xyz[:,i].ndim)
             c = polyval2(xyz[:,i] ,cc)
 
-        if np.product(c.shape)==1:
+        if np.prod(c.shape)==1:
             return c[0]
         else:
             return c
@@ -572,7 +572,7 @@ class MultiPower(Polynomial):
         '''
         super(MultiPower, self).__call__(point)
 
-        out = np.empty(self.dim,dtype="complex_")
+        out = np.empty(self.dim,dtype=np.complex128)
         if self.jac is None:
             jac = list()
             for i in range(self.dim):

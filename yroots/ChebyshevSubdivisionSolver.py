@@ -28,6 +28,8 @@ class SolverOptions():
         Maximum number of zooms allowed before subdividing (prevents infinite infintesimal shrinking)
     level : int
         Depth of subdivision for the given interval.
+    useFinalStep : bool
+        Defaults to True. Whether to run the final step (zooming in on the bounding box to a point).
     """
     def __init__(self):
         #Init all the Options to default value
@@ -38,6 +40,7 @@ class SolverOptions():
         self.all_dim_quadratic_check = False
         self.maxZoomCount = 25
         self.level = 0
+        self.useFinalStep = True
 
     def copy(self):
         return copy.copy(self) #Return shallow copy, everything should be a basic type
@@ -402,8 +405,10 @@ class TrackedInterval:
         Where the midpoint of the next subdivision should be for each dimension
     """
     def __init__(self, interval):
+        #interval is updated in place by addTransform, so it must not alias topInterval
+        #(or the array the caller handed in), otherwise the original interval is lost.
         self.topInterval = interval
-        self.interval = interval
+        self.interval = np.array(interval, dtype=float)
         self.transforms = []
         self.ndim = len(self.interval)
         self.empty = False
@@ -515,7 +520,7 @@ class TrackedInterval:
 
     def size(self):
         """Gets the volume of the current interval."""
-        return np.product(self.interval[:,1] - self.interval[:,0])
+        return np.prod(self.interval[:,1] - self.interval[:,0])
 
     def dimSize(self):
         """Gets the lengths along each dimension of the current interval."""
@@ -690,12 +695,17 @@ def BoundingIntervalLinearSystem(Ms, errors, finalStep, macheps = 2**-52):
     #This loop will only execute the second time if the interval was not changed on the first iteration and it needs to run again with tighter errors
     #Calculate the SVD outside of the for loop because it doesn't change
     U, S, Vh = np.linalg.svd(A)
-    condNum = S[-1]/S[0]
+    #S[0] == 0 means A is the zero matrix. Guard the division so the ratio (and everything
+    #derived from it below) doesn't become nan.
+    condNum = S[-1]/S[0] if S[0] > 0 else 0.
     wellConditioned = S[0] > 0 and condNum > 1e-10
     #Add this width to the new intervals we find to avoid rounding error throwing out roots
     widthToAdd = max(condNum,2)*macheps
-    Ainv = (1/S * Vh.T) @ U.T
-    center = -Ainv@consts
+    if wellConditioned:
+        #Only invert A when it is safe to do so. Otherwise S has (nearly) zero entries and the
+        #inverse is meaningless anyway, so computing it just raises divide by zero warnings.
+        Ainv = (1/S * Vh.T) @ U.T
+        center = -Ainv@consts
     #Use the first interval shrinking method
     a_init, b_init = linearCheck1(totalErrs, A, consts)
     for i in range(2):
@@ -715,9 +725,6 @@ def BoundingIntervalLinearSystem(Ms, errors, finalStep, macheps = 2**-52):
         #Add error and bound
         a -= widthToAdd
         b += widthToAdd
-        if np.any(a > b):
-            with open("num_of_times","a") as file:
-                file.write("1\n")
         throwOut = np.any(a > b) or np.any(a > 1) or np.any(b < -1)
         a[a < -1] = -1
         b[b < -1] = -1
@@ -726,7 +733,7 @@ def BoundingIntervalLinearSystem(Ms, errors, finalStep, macheps = 2**-52):
 
         forceShouldStop = finalStep and not wellConditioned
         # Calculate the "changed" variable
-        newRatio = np.product(b - a) / 2**dim
+        newRatio = np.prod(b - a) / 2**dim
         if throwOut:
             changed = True
         elif i == 0:

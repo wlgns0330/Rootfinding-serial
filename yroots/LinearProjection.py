@@ -130,7 +130,7 @@ def proj_approximate_nd(f, transform):
     cheb_points = transform(np.column_stack(tuple(map(flatten, cheb_grids))))
     values_block = f(cheb_points).reshape(*([deg+1]*proj_dim))
     values = chebyshev_block_copy(values_block)
-    coeffs = np.real(fftn(values/np.product(degs)))
+    coeffs = np.real(fftn(values/np.prod(degs)))
 
     for i in range(proj_dim):
         #construct slices for the first and degs[i] entry in each dimension
@@ -256,7 +256,7 @@ def rref(A):
         ((n,n) ndarray): The RREF of A, with columns pivoted as the algorithm chooses
         ((n,) ndarray): The column pivoting array.
     """
-    A = np.array(A, dtype=np.float, copy=True)
+    A = np.array(A, dtype=float, copy=True)
     m,n = A.shape
     Pr = np.arange(m)
     Pc = np.arange(n)
