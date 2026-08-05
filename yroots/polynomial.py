@@ -139,9 +139,9 @@ class Polynomial(object):
         if isinstance(coeff,list):
             coeff = np.array(coeff)
         if isinstance(coeff,np.ndarray):
-            # If coeff has integer (or boolean) coefficients,
+            # If coeff has integer coefficients,
             # cast as numpy floats for jit compilation
-            if np.issubdtype(coeff.dtype, np.integer) or coeff.dtype == bool:
+            if np.issubdtype(coeff.dtype, np.integer):
                 coeff = coeff.astype(np.float64)
             self.coeff = coeff
         else:
