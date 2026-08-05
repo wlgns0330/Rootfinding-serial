@@ -213,6 +213,16 @@ def test_multipower_multiplication():
     assert np.allclose(product(points), MultiPower(a)(points) * MultiPower(b)(points))
 
 
+def test_both_classes_agree_on_addition_shape():
+    """Regression test: MultiCheb.__add__ cleaned trailing zeros and MultiPower's did not."""
+    a, b = np.array([1.0, 2.0]), np.array([1.0, -2.0])     # sum is [2, 0]
+    cheb = MultiCheb(a) + MultiCheb(b)
+    power = MultiPower(a) + MultiPower(b)
+    assert cheb.shape == power.shape == (2,)
+    assert np.allclose(cheb.coeff, [2.0, 0.0])
+    assert np.allclose(power.coeff, [2.0, 0.0])
+
+
 def test_multipower_multiplication_2d():
     a = random_coeff((2, 3), seed=53)
     b = random_coeff((3, 2), seed=54)

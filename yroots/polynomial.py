@@ -293,7 +293,7 @@ class MultiCheb(Polynomial):
         else:
             new_self, new_other = self.coeff, other.coeff
 
-        return MultiCheb(new_self + new_other)
+        return MultiCheb((new_self + new_other), clean_zeros = False)
 
     def __sub__(self,other):
         '''
@@ -313,7 +313,7 @@ class MultiCheb(Polynomial):
         else:
             new_self, new_other = self.coeff, other.coeff
         return MultiCheb((new_self - (new_other)), clean_zeros = False)
-    
+
     def __call__(self, points):
         '''
         Evaluates the polynomial at the given point.
