@@ -408,7 +408,7 @@ class TrackedInterval:
         #interval is updated in place by addTransform, so it must not alias topInterval
         #(or the array the caller handed in), otherwise the original interval is lost.
         self.topInterval = interval
-        self.interval = np.array(interval, dtype=float)
+        self.interval = np.array(interval)
         self.transforms = []
         self.ndim = len(self.interval)
         self.empty = False
