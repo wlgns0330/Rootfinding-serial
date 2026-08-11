@@ -73,6 +73,31 @@ def test_bivariate():
     assert np.max(np.abs(f(roots[:,0],roots[:,1]))) < tol2
     assert np.max(np.abs(g(roots[:,0],roots[:,1]))) < tol2
 
+def test_high_dim():
+    """Four variables, where the solver stops running the quadratic check.
+
+    solvePolyRecursive gates that check on Ms[0].ndim <= 3, so dimension 4 is the first
+    one to skip it, and dimension 5 covers no branch that 4 does not. The 0.4**dim zoom
+    floor, the 2**dim volume ratio, 16 way subdivision and a 4x4 linear system are all
+    exercised here as well.
+
+    The system is triangular: x1 = 0.5, then x2 = 0.75 - x1^2, x3 = x1*x2, x4^2 = x3 + 0.5.
+    """
+    f1 = lambda x1, x2, x3, x4: x1 - 0.5
+    f2 = lambda x1, x2, x3, x4: x2 + x1**2 - 0.75
+    f3 = lambda x1, x2, x3, x4: x3 - x1*x2
+    f4 = lambda x1, x2, x3, x4: x4**2 - x3 - 0.5
+
+    a = [-1]*4
+    b = [1]*4
+
+    roots = yr.solve([f1,f2,f3,f4],a,b)
+
+    assert len(roots) == 2
+    assert_same_points(roots, np.array([[0.5, 0.5, 0.25, -np.sqrt(0.75)],
+                                        [0.5, 0.5, 0.25,  np.sqrt(0.75)]]))
+    assert np.max([np.abs(f(*[roots[:,i] for i in range(4)])) for f in [f1,f2,f3,f4]]) < tol2
+
 # Test MultiCheb and MultiPower
 def test_multiCheb_multiPower():
     """
