@@ -138,14 +138,16 @@ class Polynomial(object):
 
         if isinstance(coeff,list):
             coeff = np.array(coeff)
-        if isinstance(coeff,np.ndarray):
-            # If coeff has integer coefficients,
-            # cast as numpy floats for jit compilation
-            if np.issubdtype(coeff.dtype, np.integer):
-                coeff = coeff.astype(np.float64)
-            self.coeff = coeff
-        else:
-            raise ValueError('Invalid input for Polynomial class object')
+        if not isinstance(coeff,np.ndarray):
+            raise ValueError("Invalid input for Polynomial class object: the coefficients must "
+                             "be a list or numpy array of real numbers, but a "
+                             f"{type(coeff).__name__} was given")
+        if not np.issubdtype(coeff.dtype, np.number) or np.issubdtype(coeff.dtype, np.complexfloating):
+            raise ValueError("Invalid input for Polynomial class object: the coefficients must "
+                             f"be real numbers, but an array of dtype '{coeff.dtype}' was given")
+        if coeff.dtype != np.float64:
+            coeff = coeff.astype(np.float64)
+        self.coeff = coeff
         if clean_zeros:
             self.clean_coeff()
         self.dim = self.coeff.ndim
