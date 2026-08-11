@@ -232,6 +232,8 @@ class Polynomial(object):
         '''
         if self.shape != other.shape:
             new_self, new_other = match_size(self.coeff,other.coeff)
+        else:
+            new_self, new_other = self.coeff, other.coeff
         return np.allclose(new_self, new_other)
 
     def __ne__(self,other):
