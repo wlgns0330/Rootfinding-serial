@@ -231,8 +231,8 @@ class Polynomial(object):
         check if coeff matrix is the same.
         '''
         if self.shape != other.shape:
-            return False
-        return np.allclose(self.coeff, other.coeff)
+            new_self, new_other = match_size(self.coeff,other.coeff)
+        return np.allclose(new_self, new_other)
 
     def __ne__(self,other):
         '''
@@ -295,7 +295,7 @@ class MultiCheb(Polynomial):
         else:
             new_self, new_other = self.coeff, other.coeff
 
-        return MultiCheb((new_self + new_other), clean_zeros = False)
+        return MultiCheb((new_self + new_other), clean_zeros = True)
 
     def __sub__(self,other):
         '''
@@ -314,7 +314,7 @@ class MultiCheb(Polynomial):
             new_self, new_other = match_size(self.coeff,other.coeff)
         else:
             new_self, new_other = self.coeff, other.coeff
-        return MultiCheb((new_self - (new_other)), clean_zeros = False)
+        return MultiCheb((new_self - (new_other)), clean_zeros = True)
 
     def __call__(self, points):
         '''
@@ -459,7 +459,7 @@ class MultiPower(Polynomial):
             new_self, new_other = match_size(self.coeff,other.coeff)
         else:
             new_self, new_other = self.coeff, other.coeff
-        return MultiPower((new_self + new_other), clean_zeros = False)
+        return MultiPower((new_self + new_other), clean_zeros = True)
 
     def __sub__(self,other):
         '''
@@ -479,7 +479,7 @@ class MultiPower(Polynomial):
             new_self, new_other = match_size(self.coeff,other.coeff)
         else:
             new_self, new_other = self.coeff, other.coeff
-        return MultiPower((new_self - (new_other)), clean_zeros = False)
+        return MultiPower((new_self - (new_other)), clean_zeros = True)
 
     def __mul__(self,other):
         '''
