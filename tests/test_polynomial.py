@@ -78,11 +78,24 @@ def test_integer_coefficients_are_cast_to_float():
         assert np.array_equal(cheb.coeff, [1.0, 2.0, 3.0])
 
 
-def test_float_coefficients_are_left_alone():
+def test_narrow_and_wide_floats_are_cast_to_float64():
+    """Any real number type is cast to float64, not just the integers.
+
+    float32 coefficients would otherwise survive into the jit compiled transformations
+    and silently lose precision on every write into the accumulator.
+    """
+    for dtype in (np.float16, np.float32, np.longdouble):
+        poly = MultiPower(np.array([1.5, 2.5, 3.5], dtype=dtype))
+        assert poly.coeff.dtype == np.float64
+        assert np.allclose(poly.coeff, [1.5, 2.5, 3.5])
+
+
+def test_float64_coefficients_are_left_alone():
     coeff = np.array([[1.5, 2.5], [3.5, 4.5]])
     poly = MultiPower(coeff, clean_zeros=False)
     assert poly.coeff.dtype == np.float64
     assert np.array_equal(poly.coeff, coeff)
+    assert poly.coeff is coeff          # already float64, so no copy is made
 
 
 def test_list_input_is_converted():
@@ -92,10 +105,38 @@ def test_list_input_is_converted():
     assert poly.shape == (3,)
 
 
-@pytest.mark.parametrize("bad", ["not an array", 5, None, {"a": 1}])
-def test_invalid_coefficient_input_raises(bad):
-    with pytest.raises(ValueError):
+############################### input validation #############################
+
+@pytest.mark.parametrize("bad", ["not an array", 5, None, {"a": 1}, (1.0, 2.0)])
+def test_non_array_input_names_the_type_it_got(bad):
+    with pytest.raises(ValueError) as excinfo:
         Polynomial(bad)
+    message = str(excinfo.value)
+    assert "real numbers" in message
+    assert type(bad).__name__ in message
+
+
+@pytest.mark.parametrize("coeff", [
+    np.array([1 + 2j, 3.0]),                    # complex
+    np.array([[1 + 0j]]),                       # complex, even with a zero imaginary part
+    np.array(["a", "b"]),                       # strings
+    np.array([True, False]),                    # booleans
+    np.array([None, 1], dtype=object),          # objects
+    [1.0, "x"],                                 # a list numpy turns into strings
+])
+def test_non_real_coefficients_are_rejected(coeff):
+    """The coefficients have to be real numbers, and the message has to say so."""
+    with pytest.raises(ValueError) as excinfo:
+        MultiCheb(coeff)
+    message = str(excinfo.value)
+    assert "real numbers" in message
+    assert "dtype" in message               # names what was actually given
+
+
+def test_rejection_happens_before_anything_else():
+    """A bad dtype must fail at construction, not later inside the solver."""
+    with pytest.raises(ValueError, match="real numbers"):
+        MultiPower(np.array([1 + 1j, 2 + 2j]))
 
 
 def test_dim_and_shape_attributes():
@@ -214,13 +255,31 @@ def test_multipower_multiplication():
 
 
 def test_both_classes_agree_on_addition_shape():
-    """Regression test: MultiCheb.__add__ cleaned trailing zeros and MultiPower's did not."""
-    a, b = np.array([1.0, 2.0]), np.array([1.0, -2.0])     # sum is [2, 0]
-    cheb = MultiCheb(a) + MultiCheb(b)
-    power = MultiPower(a) + MultiPower(b)
-    assert cheb.shape == power.shape == (2,)
-    assert np.allclose(cheb.coeff, [2.0, 0.0])
-    assert np.allclose(power.coeff, [2.0, 0.0])
+    """All four of __add__ and __sub__ clean trailing zeros, in both classes.
+
+    Regression test: MultiCheb.__add__ was the only one of the four that cleaned, so the
+    two classes reported different shapes for the same result after cancellation.
+    """
+    a, b = np.array([1.0, 2.0]), np.array([1.0, -2.0])     # sum is [2, 0] -> cleaned to [2]
+    for cls in (MultiCheb, MultiPower):
+        added = cls(a) + cls(b)
+        assert added.shape == (1,)
+        assert np.allclose(added.coeff, [2.0])
+
+    # subtraction cancels the same way
+    for cls in (MultiCheb, MultiPower):
+        subtracted = cls(a) - cls(a)
+        assert subtracted.shape == (1,)
+        assert np.allclose(subtracted.coeff, [0.0])
+
+
+def test_cleaning_does_not_change_the_polynomial():
+    """Trimming trailing zeros must not change what the polynomial evaluates to."""
+    a = np.array([[1.0, 2.0], [3.0, 0.0]])
+    b = np.array([[0.5, 2.0], [1.0, 0.0]])
+    points = random_points(2, 5, seed=90)
+    for cls, ev in ((MultiPower, eval_power), (MultiCheb, eval_cheb)):
+        assert np.allclose((cls(a) - cls(b))(points), ev(a - b, points))
 
 
 def test_multipower_multiplication_2d():
