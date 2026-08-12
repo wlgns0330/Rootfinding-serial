@@ -166,11 +166,12 @@ def verbose_pass_or_fail(funcs, yroots, polished_roots, test_num, cheb_roots=Non
     if polished_roots.ndim == 1:
         polished_roots = polished_roots[..., np.newaxis].T
 
-    if test_num == 6.1 and len(yroots) != 6:
-        raise AssertionError(
-            f"Test 6.1: YRoots found {len(yroots)} roots, but it should find 6, one of which is a duplicate root."
-            f"By reference, polished roots has {len(polished_roots)}!"
-        )
+    if test_num == 6.1:
+        if len(yroots) != 6:
+            raise AssertionError(
+                f"Test 6.1: YRoots found {len(yroots)} roots, but it should find 6, one of which is a duplicate root."
+                f"By reference, polished roots has {len(polished_roots)}!"
+            )
     elif len(yroots) != len(polished_roots):
         raise AssertionError(
             f"Test {test_num}: YRoots found {len(yroots)} roots, but the "
