@@ -1,5 +1,21 @@
-pip==26.1.2
-wheel==0.46.2
+# Runtime dependencies, so `tox` (which installs only this file) gets them too.
+-r requirements.txt
+
 pytest==9.0.3
 pytest-cov==2.7.1
+pytest-runner==2.11.1
 codecov==2.0.15
+pip
+bumpversion
+wheel
+watchdog>=2.1
+flake8>=6.0
+tox>=4.0
+coverage>=7.0
+Sphinx>=5.0
+twine>=4.0
+
+pytest>=7.0
+pytest-cov>=4.0
+pytest-runner>=5.2
+codecov>=2.1

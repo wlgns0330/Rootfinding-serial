@@ -1,7 +1,7 @@
 import numpy as np
 from yroots.Combined_Solver import solve
 from time import time
-# from matplotlib import pyplot as plt
+
 # TODO Description of where these tests come from, links to relevant papers,
 # acknowledgements, etc.
 
@@ -169,6 +169,11 @@ def verbose_pass_or_fail(funcs, yroots, polished_roots, test_num, cheb_roots=Non
             f"Test {test_num}: YRoots found {len(yroots)} roots, but the "
             f"polished roots reference has {len(polished_roots)}!"
         )
+    elif test_num == 6.1 and len(yroots) != 6:
+        raise AssertionError(
+            f"Test 6.1: YRoots found {len(yroots)} roots, but it should find 6, one of which is a duplicate root."
+            f"By reference, polished roots has {len(polished_roots)}!"
+        )
 
     alt_resid_tols = {4.2: 3.35e-07, 10.1 : 5e-12}
     if test_num in alt_resid_tols.keys():
@@ -200,9 +205,7 @@ def verbose_pass_or_fail(funcs, yroots, polished_roots, test_num, cheb_roots=Non
     alt_norm_tols = {1.2 : 1e-7, 3.1 : 5e-11, 4.2 : 7e-13, 7.2 : 1e-8}
     if polished_roots is not None:
         try:
-            if test_num == 6.1:
-                    norm_pass = True
-            elif test_num in alt_norm_tols.keys():
+            if test_num in alt_norm_tols.keys():
                 norm_pass, x_norm, y_norm = norm_pass_or_fail(yroots, polished_roots, alt_norm_tols[test_num])
             else:
                 norm_pass, x_norm, y_norm = norm_pass_or_fail(yroots, polished_roots, tol)
@@ -697,21 +700,6 @@ def test_roots_10():
 
     return t, verbose_pass_or_fail([f,g], yroots, actual_roots, 10.1, cheb_roots=chebfun_roots)
 
-# def plot_timings(tests,timings):
-#     labels = [test.__name__[11:].replace('_','.') for test in tests]
-#     plt.figure(figsize=(8,5))
-#     plt.subplot(211)
-#     plt.bar(labels,timings)
-#     plt.xticks(rotation=45)
-#     plt.ylim(0,40)
-#     plt.subplot(212)
-#     plt.bar(labels,timings)
-#     plt.xticks(rotation=45)
-#     plt.yscale('log')
-#     plt.ylim((10**-3,10**2))
-#     plt.tight_layout()
-#     plt.show()
-
 if __name__ == "__main__":
 #     # Run all the tests!
     test_roots_2_5()
@@ -762,5 +750,4 @@ if __name__ == "__main__":
     where_failed_norm = np.where(~norm_passes)[0]
     failed_norm_tests = tests[where_failed_norm]
     print(f'Failed Norm Test on \n{[t.__name__ for t in failed_norm_tests]}')
-    plot_timings(tests,times)
     print(finish-start)

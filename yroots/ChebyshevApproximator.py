@@ -59,9 +59,11 @@ def interval_approximate_nd(f, degs, a, b, retSupNorm = False):
         The sup norm of the function, approximated as the maximum function evaluation.
     """
     dim = len(degs)
-    # If any dimension has degree 0, turn it to degree 1 (will be sliced out at the end)
-    originalDegs = degs.copy()
-    degs[degs == 0] = 1 
+    # If any dimension has degree 0, turn it to degree 1 (will be sliced out at the end).
+    # Work on a copy so the degrees passed in by the caller are left untouched.
+    originalDegs = degs
+    degs = np.array(degs)
+    degs[degs == 0] = 1
 
     # Get the Chebyshev Grid Points
     cheb_grid = np.meshgrid(*([transform(np.cos(np.arange(deg+1)*np.pi/deg), a_,b_) 
@@ -109,7 +111,7 @@ def startedConverging(coeffList, tol):
     startedConverging : bool
         True if the last 5 coefficients of coeffList are less than tol; False otherwise
     """
-    return np.all(coeffList[-5:] < tol)
+    return np.all(coeffList[-5:] <= tol)
     
 def hasConverged(coeff, coeff2, tol):
     """Determine whether the high-degree coefficients of a Chebyshev approximation have converged
@@ -132,7 +134,7 @@ def hasConverged(coeff, coeff2, tol):
     coeff3 = coeff2.copy()
     # Subtract off coeff from coeff2 elementwise and ensure all elements are then less than tol
     coeff3[tuple([slice(0, d) for d in coeff.shape])] -= coeff 
-    return np.max(np.abs(coeff3)) < tol
+    return np.max(np.abs(coeff3)) <= tol
     
 def getFinalDegree(coeff,tol,macheps = 2**-52):
     """Finalize the degree of Chebyshev approximation to use along one particular dimension.
@@ -172,11 +174,15 @@ def getFinalDegree(coeff,tol,macheps = 2**-52):
     degree = 1 if len(nonZeroCoeffs) == 0 else max(1, nonZeroCoeffs[-1])
 
     # Set degree to 0 for constant functions (all coefficients but first are less than tol)
-    if np.all(coeff[1:] < tol):
+    if np.all(coeff[1:] <= tol):
         degree = 0
     
     # Calculate the rate of convergence
     maxSpot = np.argmax(coeff)
+    if coeff[maxSpot] == 0:
+        #Every coefficient is 0, so the approximation is exact. Report perfect convergence
+        #instead of dividing 0 by epsVal, which would give a rate of 0 (and a negative error bound).
+        return degree, 0, np.inf
     if epsVal == 0: #Avoid divide by 0. epsVal shouldn't be able to shrink by more than 1e-24 cause floating point.
          epsVal = coeff[maxSpot] * 1e-24
     rho = (coeff[maxSpot]/epsVal)**(1/((degree - maxSpot) + 1)) 

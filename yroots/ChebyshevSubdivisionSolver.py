@@ -32,6 +32,8 @@ class SolverOptions():
         Maximum number of zooms allowed before subdividing (prevents infinite infinitesimal shrinking).
     level : int
         Depth of subdivision for the given interval.
+    useFinalStep : bool
+        Defaults to True. Whether to run the final step (zooming in on the bounding box to a point).
     """
     def __init__(self):
         #Init all the Options to default value
@@ -42,6 +44,8 @@ class SolverOptions():
         self.all_dim_quadratic_check = False
         self.maxZoomCount = 25
         self.level = 0
+        self.useFinalStep = True
+
 
     def copy(self):
         return copy.copy(self) #Return shallow copy, everything should be a basic type
@@ -412,7 +416,7 @@ class TrackedInterval:
     """
     def __init__(self, interval):
         self.topInterval = interval
-        self.interval = interval
+        self.interval = np.array(interval)
         self.transforms = []
         self.ndim = len(self.interval)
         self.empty = False
@@ -701,12 +705,21 @@ def BoundingIntervalLinearSystem(Ms, errors, finalStep, macheps = 2**-52):
     #This loop will only execute the second time if the interval was not changed on the first iteration and it needs to run again with tighter errors
     #Calculate the SVD outside of the for loop because it doesn't change
     U, S, Vh = np.linalg.svd(A)
-    condNum = S[-1]/S[0]
-    wellConditioned = S[0] > 0 and condNum > 1e-10
-    #Add this width to the new intervals we find to avoid rounding error throwing out roots
+    #Test the reciprocal condition number rather than the condition number itself, so that
+    #a singular A gives 0 instead of a divide by zero. S[0] == 0 means A is all zeros.
+    invCondNum = S[-1]/S[0] if S[0] > 0 else 0.
+    wellConditioned = S[0] > 0 and invCondNum > 1e-10
+    #Add this width to the new intervals we find to avoid rounding error throwing out roots.
+    #Solving with Ainv below loses about condNum digits, so the interval it produces has to be
+    #padded by that much. The bound from linearCheck1 is computed entrywise and only loses a
+    #couple of ulps, so when we fall back on it alone the padding stays at machine precision.
+    condNum = 1/invCondNum if wellConditioned else 1.
     widthToAdd = max(condNum,2)*macheps
-    Ainv = (1/S * Vh.T) @ U.T
-    center = -Ainv@consts
+    if wellConditioned:
+        #Only invert A when it is safe to do so. Otherwise S has (nearly) zero entries and the
+        #inverse is meaningless anyway, so computing it just raises divide by zero warnings.
+        Ainv = (1/S * Vh.T) @ U.T
+        center = -Ainv@consts
     #Use the first interval shrinking method
     a_init, b_init = linearCheck1(totalErrs, A, consts)
     for i in range(2):
@@ -1238,15 +1251,12 @@ def solvePolyRecursive(Ms, trackedInterval, errors, solverOptions):
     originalMs = Ms.copy()
     trackedInterval = trackedInterval.copy()
     errors = errors.copy()
-    tolerable_error = max(errors) * 1e-3
     trimMs(Ms, errors)
 
     #Solve
-    dim = Ms[0].ndim
     changed = True
     zoomCount = 0
     originalInterval = trackedInterval.copy()
-    originalIntervalSize = trackedInterval.size()
     #Zoom in while we can
     lastSizes = trackedInterval.dimSize()
     while changed and zoomCount <= solverOptions.maxZoomCount:

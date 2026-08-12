@@ -129,14 +129,16 @@ class Polynomial(object):
 
         if isinstance(coeff,list):
             coeff = np.array(coeff)
-        if isinstance(coeff,np.ndarray):
-            self.coeff = coeff
-            # If coeff has integer coefficients,
-            # cast as numpy floats for jit compilation
-            if coeff.dtype == np.int32 or coeff.dtype == np.int64:
-                coeff = coeff.astype(np.float64)
-        else:
-            raise ValueError('Invalid input for Polynomial class object')
+        if not isinstance(coeff,np.ndarray):
+            raise ValueError("Invalid input for Polynomial class object: the coefficients must "
+                             "be a list or numpy array of real numbers, but a "
+                             f"{type(coeff).__name__} was given")
+        if not np.issubdtype(coeff.dtype, np.number) or np.issubdtype(coeff.dtype, np.complexfloating):
+            raise ValueError("Invalid input for Polynomial class object: the coefficients must "
+                             f"be real numbers, but an array of dtype '{coeff.dtype}' was given")
+        if coeff.dtype != np.float64:
+            coeff = coeff.astype(np.float64)
+        self.coeff = coeff
         if clean_zeros:
             self.clean_coeff()
         self.dim = self.coeff.ndim
@@ -218,8 +220,10 @@ class Polynomial(object):
     def __eq__(self,other):
         """Check if coeff matrix is the same."""
         if self.shape != other.shape:
-            return False
-        return np.allclose(self.coeff, other.coeff)
+            new_self, new_other = match_size(self.coeff,other.coeff)
+        else:
+            new_self, new_other = self.coeff, other.coeff
+        return np.allclose(new_self, new_other)
 
     def __ne__(self,other):
         """Check if coeff matrix is not the same."""
@@ -299,7 +303,7 @@ class MultiCheb(Polynomial):
             new_self, new_other = match_size(self.coeff,other.coeff)
         else:
             new_self, new_other = self.coeff, other.coeff
-        return MultiCheb((new_self - (new_other)), clean_zeros = False)
+        return MultiCheb((new_self - (new_other)))
     
     def __call__(self, points):
         """
@@ -373,7 +377,7 @@ class MultiCheb(Polynomial):
         """
         super(MultiCheb, self).__call__(point)
 
-        out = np.empty(self.dim,dtype=complex)
+        out = np.empty(self.dim,dtype=np.complex128)
         if self.jac is None:
             jac = list()
             for i in range(self.dim):
@@ -444,7 +448,7 @@ class MultiPower(Polynomial):
             new_self, new_other = match_size(self.coeff,other.coeff)
         else:
             new_self, new_other = self.coeff, other.coeff
-        return MultiPower((new_self + new_other), clean_zeros = False)
+        return MultiPower((new_self + new_other))
 
     def __sub__(self,other):
         """
@@ -464,7 +468,7 @@ class MultiPower(Polynomial):
             new_self, new_other = match_size(self.coeff,other.coeff)
         else:
             new_self, new_other = self.coeff, other.coeff
-        return MultiPower((new_self - (new_other)), clean_zeros = False)
+        return MultiPower((new_self - (new_other)))
 
     def __mul__(self,other):
         """
@@ -559,7 +563,7 @@ class MultiPower(Polynomial):
         """
         super(MultiPower, self).__call__(point)
 
-        out = np.empty(self.dim,dtype=complex)
+        out = np.empty(self.dim,dtype=np.complex128)
         if self.jac is None:
             jac = list()
             for i in range(self.dim):
