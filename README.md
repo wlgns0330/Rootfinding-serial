@@ -14,11 +14,12 @@ This project was supported in part by the National Science Foundation, grant num
 <!-- [![Code Health](https://landscape.io/github/tylerjarvis/RootFinding/pypackage/landscape.svg)](https://landscape.io/github/tylerjarvis/RootFinding/pypackage) -->
 
 ### Requirements
-* Python ≥ 3.9
-* NumPy ≥ 1.21
-* Numba ≥ 0.57.0
-* SciPy ≥ 1.10
-* Matplotlib ≥ 3.7
+* numpy>=1.24
+* scipy>=1.10
+* numba>=0.59
+* matplotlib>=3.5
+* mpmath>=1.3
+* sympy>=1.12
 
 ## Installation
 
