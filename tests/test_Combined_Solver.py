@@ -238,9 +238,8 @@ def test_exact_option():
     """
 
     THIS_DIR = Path(__file__).resolve().parent          # .../tests
-    ROOT_DIR = THIS_DIR.parent                          # repo root (if tests/ is at root)
-    actual_roots_path = ROOT_DIR / "Polished_results" / "polished_2.3.npy"
-    chebfun_roots_path = ROOT_DIR / "Chebfun_results" / "test_roots_2.3.csv"
+    actual_roots_path = THIS_DIR / "Polished_results" / "polished_2.3.npy"
+    chebfun_roots_path = THIS_DIR / "Chebfun_results" / "test_roots_2.3.csv"
 
     f = lambda x,y: np.sin(4*(x + y/10 + np.pi/10))
     g = lambda x,y: np.cos(2*(x-2*y+ np.pi/7))
