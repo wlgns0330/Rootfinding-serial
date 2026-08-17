@@ -37,6 +37,10 @@ here asserts against them: Chebfun is a second implementation, not ground truth,
 YRoots is more accurate on some of these systems and less on others, so agreement
 with Chebfun is not a correctness criterion. The files are kept for benchmarking.
 """
+#: Keeps the ``X | None`` annotation below from being evaluated at class-creation
+#: time, so the module imports on Python 3.9 (PEP 604 unions are 3.10+).
+from __future__ import annotations
+
 import dataclasses
 
 import numpy as np
