@@ -1435,8 +1435,6 @@ def solveChebyshevSubdivision(Ms, errors, verbose = False, exact = False, consta
         The max error of the chebyshev approximation from the function on the interval
     verbose : bool
         Defaults to False. Whether or not to output progress of solving to the terminal.
-    returnBoundingBoxes : bool
-        Defaults to False. If True, returns the bounding boxes around each root as well as the roots.
     exact : bool
         Defaults to False. Whether transformations should be done with higher precision to minimize error.
     constant_check : bool
@@ -1448,11 +1446,10 @@ def solveChebyshevSubdivision(Ms, errors, verbose = False, exact = False, consta
 
     Returns
     -------
-    roots : list
-        The roots of the system of functions on the interval given to Combined Solver. Returned
-        alone when ``returnBoundingBoxes`` is False.
-    boundingBoxes : list of TrackedInterval
-        Only returned when ``returnBoundingBoxes`` is True. Bounding intervals for each root.
+    boundingIntervals : list of TrackedInterval
+        A finalized bounding interval for each root found on the interval given to Combined Solver.
+        The roots themselves are not returned; call :func:`getRootsInInterval` on an interval to get
+        the root or roots it reports.
     """
     #Assert that we have n nD polys
     if np.any([M.ndim != len(Ms) for M in Ms]):
@@ -1475,7 +1472,6 @@ def solveChebyshevSubdivision(Ms, errors, verbose = False, exact = False, consta
     b1, b2 = solvePolyRecursive(Ms, originalInterval, errors, solverOptions)
 
     boundingIntervals = b1 + b2
-    roots = []
     hasDupRoots = False
     hasExtraRoots = False
     for interval in boundingIntervals:
