@@ -1424,8 +1424,42 @@ def getRootsInInterval(interval):
         return list(interval.possibleDuplicateRoots)
     return [interval.getFinalPoint()]
 
-def solveChebyshevSubdivision(Ms, errors, verbose = False, returnBoundingBoxes = False, exact = False, constant_check = True, low_dim_quadratic_check = True, all_dim_quadratic_check = False):
-    """Initiates shrinking and subdivision recursion and returns the roots and bounding boxes.
+def finalizeBoundingIntervals(boundingIntervals):
+    """Computes the final interval of each bounding interval and warns about extra or duplicate roots.
+
+    An interval leaves the subdivision recursion knowing only its chain of transforms, so its
+    finalInterval attribute does not exist until getFinalInterval is called. Everything that reads
+    a bounding interval (its final interval, its size, or the roots it reports) needs that attribute,
+    so the intervals are finalized here before they are handed back to the caller.
+
+    Parameters
+    ----------
+    boundingIntervals : list of TrackedInterval
+        The bounding intervals found by the subdivision recursion.
+
+    Returns
+    -------
+    boundingIntervals : list of TrackedInterval
+        The same list, with the final interval of each interval computed.
+    """
+    hasDupRoots = False
+    hasExtraRoots = False
+    for interval in boundingIntervals:
+        #After this call interval.finalInterval is the interval where we say the root is.
+        interval.getFinalInterval()
+        if interval.possibleExtraRoot:
+            hasExtraRoots = True
+        if len(interval.possibleDuplicateRoots) > 0:
+            hasDupRoots = True
+    #Warn if extra or duplicate roots
+    if hasExtraRoots:
+        warnings.warn(f"Might Have Extra Roots! See Bounding Boxes for details!")
+    if hasDupRoots:
+        warnings.warn(f"Might Have Duplicate Roots! See Bounding Boxes for details!")
+    return boundingIntervals
+
+def solveChebyshevSubdivision(Ms, errors, verbose = False, exact = False, constant_check = True, low_dim_quadratic_check = True, all_dim_quadratic_check = False):
+    """Initiates shrinking and subdivision recursion and returns a bounding interval for each root.
 
     Parameters
     ----------
@@ -1435,8 +1469,6 @@ def solveChebyshevSubdivision(Ms, errors, verbose = False, returnBoundingBoxes =
         The max error of the chebyshev approximation from the function on the interval
     verbose : bool
         Defaults to False. Whether or not to output progress of solving to the terminal.
-    returnBoundingBoxes : bool
-        Defaults to False. If True, returns the bounding boxes around each root as well as the roots.
     exact : bool
         Defaults to False. Whether transformations should be done with higher precision to minimize error.
     constant_check : bool
@@ -1448,11 +1480,10 @@ def solveChebyshevSubdivision(Ms, errors, verbose = False, returnBoundingBoxes =
 
     Returns
     -------
-    roots : list
-        The roots of the system of functions on the interval given to Combined Solver. Returned
-        alone when ``returnBoundingBoxes`` is False.
-    boundingBoxes : list of TrackedInterval
-        Only returned when ``returnBoundingBoxes`` is True. Bounding intervals for each root.
+    boundingIntervals : list of TrackedInterval
+        A finalized bounding interval for each root found on the interval given to Combined Solver.
+        The roots themselves are not returned; call :func:`getRootsInInterval` on an interval to get
+        the root or roots it reports.
     """
     #Assert that we have n nD polys
     if np.any([M.ndim != len(Ms) for M in Ms]):
@@ -1474,32 +1505,5 @@ def solveChebyshevSubdivision(Ms, errors, verbose = False, returnBoundingBoxes =
         print("Finding roots...", end=' ')
     b1, b2 = solvePolyRecursive(Ms, originalInterval, errors, solverOptions)
 
-    boundingIntervals = b1 + b2
-    roots = []
-    hasDupRoots = False
-    hasExtraRoots = False
-    for interval in boundingIntervals:
-        #Right now interval.finalInterval is the interval where we say the root is.
-        interval.getFinalInterval()
-        if interval.possibleExtraRoot:
-            hasExtraRoots = True
-        if len(interval.possibleDuplicateRoots) > 0:
-            hasDupRoots = True
-        #Repeat the interval once per root it reports, so roots and rootBoxes are
-        #index-aligned and rootBoxes[i] is the box that produced roots[i].
-        intervalRoots = getRootsInInterval(interval)
-        roots += intervalRoots
-    #Warn if extra or duplicate roots
-    if hasExtraRoots:
-        warnings.warn(f"Might Have Extra Roots! See Bounding Boxes for details!")
-    if hasDupRoots:
-        warnings.warn(f"Might Have Duplicate Roots! See Bounding Boxes for details!")
-    #Return
-    roots = np.array(roots)
-    if verbose:
-        finish_string = '\n' + f"Found {len(roots)} roots"
-        print((finish_string if len(roots) != 1 else finish_string[:-1]),end='\n\n')
-    if returnBoundingBoxes:
-        return roots, boundingIntervals
-    else:
-        return roots
+    #Finalize the intervals so callers can read finalInterval and the roots each one reports.
+    return finalizeBoundingIntervals(b1 + b2)

@@ -1,5 +1,6 @@
 """Unit tests for yroots.ChebyshevSubdivisionSolver."""
 import os
+import warnings
 import numpy as np
 import pytest
 from numpy.polynomial import chebyshev as C
@@ -11,6 +12,7 @@ from yroots.ChebyshevSubdivisionSolver import (SolverOptions, TrackedInterval, T
                                                getInverseOrder, getSubdivisionDims, getSubdivisionIntervals,
                                                getTransformPoints, getTransformationError, isExteriorInterval,
                                                solveChebyshevSubdivision, solvePolyRecursive, transformCheb,
+                                               getRootsInInterval, finalizeBoundingIntervals,
                                                transformChebToInterval, trimMs, zoomInOnIntervalIter,
                                                Split, TwoSum, TwoProd, Split_NoNumba, TwoSum_NoNumba,
                                                TwoProd_NoNumba)
@@ -28,6 +30,14 @@ def linear_cheb(dim, coord, root):
     idx[coord] = 1
     M[tuple(idx)] = 1.0
     return M
+
+
+def roots_from(boundingIntervals):
+    """The roots that a list of bounding intervals reports, the way a caller reads them off."""
+    roots = []
+    for interval in boundingIntervals:
+        roots += getRootsInInterval(interval)
+    return np.array(roots)
 
 
 ############################### error free arithmetic ########################
@@ -546,6 +556,40 @@ def test_zoomInOnIntervalIter_marks_an_empty_interval():
     assert newInterval.empty
 
 
+############################### finalizeBoundingIntervals ###################
+
+def test_finalizeBoundingIntervals_computes_the_final_interval():
+    tracked = TrackedInterval(UNIT_BOX_2D.copy())
+    tracked.addTransform(np.array([[-1., 0.], [0., 1.]]))
+    assert not hasattr(tracked, "finalInterval")
+
+    result = finalizeBoundingIntervals([tracked])
+
+    assert result[0] is tracked
+    assert np.allclose(tracked.finalInterval, [[-1., 0.], [0., 1.]])
+
+
+def test_finalizeBoundingIntervals_warns_about_extra_roots():
+    tracked = TrackedInterval(UNIT_BOX_2D.copy())
+    tracked.possibleExtraRoot = True
+    with pytest.warns(UserWarning, match="Extra Roots"):
+        finalizeBoundingIntervals([tracked])
+
+
+def test_finalizeBoundingIntervals_warns_about_duplicate_roots():
+    tracked = TrackedInterval(UNIT_BOX_2D.copy())
+    tracked.possibleDuplicateRoots = [np.array([0.5, -0.25]), np.array([0.5, 0.25])]
+    with pytest.warns(UserWarning, match="Duplicate Roots"):
+        finalizeBoundingIntervals([tracked])
+
+
+def test_finalizeBoundingIntervals_is_quiet_for_ordinary_intervals():
+    tracked = TrackedInterval(UNIT_BOX_2D.copy())
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        finalizeBoundingIntervals([tracked])
+
+
 ############################### solveChebyshevSubdivision ####################
 
 def test_solve_rejects_a_non_square_system():
@@ -561,35 +605,57 @@ def test_solve_rejects_mismatched_errors():
 
 def test_solve_finds_the_root_of_a_linear_system():
     Ms = [linear_cheb(2, 0, 0.5), linear_cheb(2, 1, -0.25)]
-    roots = solveChebyshevSubdivision(Ms, np.array([0., 0.]))
+    roots = roots_from(solveChebyshevSubdivision(Ms, np.array([0., 0.])))
     assert roots.shape == (1, 2)
     assert np.allclose(roots[0], [0.5, -0.25], atol=1e-10)
 
 
 def test_solve_finds_both_roots_of_a_quadratic():
-    roots = solveChebyshevSubdivision([np.array([0., 0., 1.])], np.array([0.]))   # T_2
+    boxes = solveChebyshevSubdivision([np.array([0., 0., 1.])], np.array([0.]))   # T_2
+    roots = roots_from(boxes)
     assert np.allclose(np.sort(np.ravel(roots)), [-1 / np.sqrt(2), 1 / np.sqrt(2)], atol=1e-10)
+
+
+def test_solve_returns_only_bounding_boxes():
+    # The solver hands back bounding intervals alone; roots are read off them by the caller.
+    Ms = [linear_cheb(2, 0, 0.5), linear_cheb(2, 1, -0.25)]
+    boxes = solveChebyshevSubdivision(Ms, np.array([0., 0.]))
+    assert isinstance(boxes, list)
+    assert all(isinstance(box, TrackedInterval) for box in boxes)
 
 
 def test_solve_returns_bounding_boxes_that_contain_the_roots():
     Ms = [linear_cheb(2, 0, 0.5), linear_cheb(2, 1, -0.25)]
-    roots, boxes = solveChebyshevSubdivision(Ms, np.array([0., 0.]), returnBoundingBoxes=True)
-    assert len(roots) == len(boxes)
-    for root, box in zip(roots, boxes):
-        assert root in box
+    boxes = solveChebyshevSubdivision(Ms, np.array([0., 0.]))
+    assert len(boxes) == 1
+    for box in boxes:
+        # A box that could not separate the roots inside it reports more than one, and every
+        # root it reports has to lie in that box.
+        for root in getRootsInInterval(box):
+            assert root in box
+
+
+def test_solve_returns_finalized_boxes():
+    # finalInterval only exists once getFinalInterval has run, and callers read it straight off
+    # the returned boxes, so the solver has to finalize them before handing them back.
+    Ms = [linear_cheb(2, 0, 0.5), linear_cheb(2, 1, -0.25)]
+    for box in solveChebyshevSubdivision(Ms, np.array([0., 0.])):
+        assert np.allclose(box.finalInterval[:, 0], [0.5, -0.25], atol=1e-8)
+        assert np.all(box.finalDimSize() >= 0)
 
 
 def test_solve_reports_no_roots_when_there_are_none():
     # x - 5 and y - 5 have no roots inside [-1, 1]^2
-    roots = solveChebyshevSubdivision([linear_cheb(2, 0, 5.0), linear_cheb(2, 1, 5.0)],
+    boxes = solveChebyshevSubdivision([linear_cheb(2, 0, 5.0), linear_cheb(2, 1, 5.0)],
                                       np.array([0., 0.]))
-    assert len(roots) == 0
+    assert len(boxes) == 0
+    assert len(roots_from(boxes)) == 0
 
 
 def test_solve_agrees_with_itself_in_exact_mode():
     Ms = [linear_cheb(2, 0, 0.3), linear_cheb(2, 1, -0.6)]
-    fast = solveChebyshevSubdivision(Ms, np.array([0., 0.]), exact=False)
-    exact = solveChebyshevSubdivision(Ms, np.array([0., 0.]), exact=True)
+    fast = roots_from(solveChebyshevSubdivision(Ms, np.array([0., 0.]), exact=False))
+    exact = roots_from(solveChebyshevSubdivision(Ms, np.array([0., 0.]), exact=True))
     assert np.allclose(np.sort(fast, axis=0), np.sort(exact, axis=0), atol=1e-10)
 
 
