@@ -1424,7 +1424,7 @@ def getRootsInInterval(interval):
         return list(interval.possibleDuplicateRoots)
     return [interval.getFinalPoint()]
 
-def solveChebyshevSubdivision(Ms, errors, verbose = False, returnBoundingBoxes = False, exact = False, constant_check = True, low_dim_quadratic_check = True, all_dim_quadratic_check = False):
+def solveChebyshevSubdivision(Ms, errors, verbose = False, exact = False, constant_check = True, low_dim_quadratic_check = True, all_dim_quadratic_check = False):
     """Initiates shrinking and subdivision recursion and returns the roots and bounding boxes.
 
     Parameters
@@ -1485,21 +1485,9 @@ def solveChebyshevSubdivision(Ms, errors, verbose = False, returnBoundingBoxes =
             hasExtraRoots = True
         if len(interval.possibleDuplicateRoots) > 0:
             hasDupRoots = True
-        #Repeat the interval once per root it reports, so roots and rootBoxes are
-        #index-aligned and rootBoxes[i] is the box that produced roots[i].
-        intervalRoots = getRootsInInterval(interval)
-        roots += intervalRoots
     #Warn if extra or duplicate roots
     if hasExtraRoots:
         warnings.warn(f"Might Have Extra Roots! See Bounding Boxes for details!")
     if hasDupRoots:
         warnings.warn(f"Might Have Duplicate Roots! See Bounding Boxes for details!")
-    #Return
-    roots = np.array(roots)
-    if verbose:
-        finish_string = '\n' + f"Found {len(roots)} roots"
-        print((finish_string if len(roots) != 1 else finish_string[:-1]),end='\n\n')
-    if returnBoundingBoxes:
-        return roots, boundingIntervals
-    else:
-        return roots
+    return boundingIntervals
