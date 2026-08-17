@@ -1,0 +1,23 @@
+# Byte-compiled files
+__pycache__/
+*.py[cod]
+
+# Numba's on-disk JIT cache, written next to the sources it compiles
+# (see the NOTE in Combined_Solver.solve)
+*.nbc
+*.nbi
+
+# Virtual environments
+.venv/
+venv/
+
+# Packaging and test artifacts
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Jupyter
+.ipynb_checkpoints/
