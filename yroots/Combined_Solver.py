@@ -226,7 +226,7 @@ def solve(funcs,a=-1,b=1, verbose = False, returnBoundingBoxes = False, exact=Fa
     
     # Find and return the roots (and, optionally, the bounding boxes)
     if verbose:
-        _printRootCount(len(yroots))
+        _printRootCount(len(finalRoots))
     if returnBoundingBoxes:
         return finalRoots, finalBoxes
     else:
