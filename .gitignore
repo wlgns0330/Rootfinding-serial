@@ -1,0 +1,15 @@
+# Python bytecode and numba's on-disk JIT cache (written into yroots/__pycache__)
+__pycache__/
+*.py[cod]
+*.nbi
+*.nbc
+
+# Virtual environments
+.venv/
+venv/
+
+# Packaging / test artifacts
+*.egg-info/
+build/
+dist/
+.pytest_cache/
