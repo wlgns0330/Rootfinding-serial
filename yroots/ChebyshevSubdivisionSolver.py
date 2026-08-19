@@ -1424,7 +1424,7 @@ def getRootsInInterval(interval):
         return list(interval.possibleDuplicateRoots)
     return [interval.getFinalPoint()]
 
-def solveChebyshevSubdivision(Ms, errors, verbose = False, returnBoundingBoxes = False, exact = False, constant_check = True, low_dim_quadratic_check = True, all_dim_quadratic_check = False):
+def solveChebyshevSubdivision(Ms, errors, verbose = False, exact = False, constant_check = True, low_dim_quadratic_check = True, all_dim_quadratic_check = False):
     """Initiates shrinking and subdivision recursion and returns the roots and bounding boxes.
 
     Parameters
@@ -1435,8 +1435,6 @@ def solveChebyshevSubdivision(Ms, errors, verbose = False, returnBoundingBoxes =
         The max error of the chebyshev approximation from the function on the interval
     verbose : bool
         Defaults to False. Whether or not to output progress of solving to the terminal.
-    returnBoundingBoxes : bool
-        Defaults to False. If True, returns the bounding boxes around each root as well as the roots.
     exact : bool
         Defaults to False. Whether transformations should be done with higher precision to minimize error.
     constant_check : bool
@@ -1448,11 +1446,10 @@ def solveChebyshevSubdivision(Ms, errors, verbose = False, returnBoundingBoxes =
 
     Returns
     -------
-    roots : list
-        The roots of the system of functions on the interval given to Combined Solver. Returned
-        alone when ``returnBoundingBoxes`` is False.
-    boundingBoxes : list of TrackedInterval
-        Only returned when ``returnBoundingBoxes`` is True. Bounding intervals for each root.
+    boundingIntervals : list of TrackedInterval
+        A finalized bounding interval for each root found on the interval given to Combined Solver.
+        The roots themselves are not returned; call :func:`getRootsInInterval` on an interval to get
+        the root or roots it reports.
     """
     #Assert that we have n nD polys
     if np.any([M.ndim != len(Ms) for M in Ms]):
@@ -1475,7 +1472,6 @@ def solveChebyshevSubdivision(Ms, errors, verbose = False, returnBoundingBoxes =
     b1, b2 = solvePolyRecursive(Ms, originalInterval, errors, solverOptions)
 
     boundingIntervals = b1 + b2
-    roots = []
     hasDupRoots = False
     hasExtraRoots = False
     for interval in boundingIntervals:
@@ -1485,21 +1481,9 @@ def solveChebyshevSubdivision(Ms, errors, verbose = False, returnBoundingBoxes =
             hasExtraRoots = True
         if len(interval.possibleDuplicateRoots) > 0:
             hasDupRoots = True
-        #Repeat the interval once per root it reports, so roots and rootBoxes are
-        #index-aligned and rootBoxes[i] is the box that produced roots[i].
-        intervalRoots = getRootsInInterval(interval)
-        roots += intervalRoots
     #Warn if extra or duplicate roots
     if hasExtraRoots:
         warnings.warn(f"Might Have Extra Roots! See Bounding Boxes for details!")
     if hasDupRoots:
         warnings.warn(f"Might Have Duplicate Roots! See Bounding Boxes for details!")
-    #Return
-    roots = np.array(roots)
-    if verbose:
-        finish_string = '\n' + f"Found {len(roots)} roots"
-        print((finish_string if len(roots) != 1 else finish_string[:-1]),end='\n\n')
-    if returnBoundingBoxes:
-        return roots, boundingIntervals
-    else:
-        return roots
+    return boundingIntervals

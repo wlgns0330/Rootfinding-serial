@@ -37,6 +37,7 @@ here asserts against them: Chebfun is a second implementation, not ground truth,
 YRoots is more accurate on some of these systems and less on others, so agreement
 with Chebfun is not a correctness criterion. The files are kept for benchmarking.
 """
+from __future__ import annotations
 import dataclasses
 
 import numpy as np

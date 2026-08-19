@@ -6,6 +6,11 @@ import yroots.ChebyshevSubdivisionSolver as ChebyshevSubdivisionSolver
 import yroots.ChebyshevApproximator as ChebyshevApproximator
 from yroots.polynomial import MultiCheb,MultiPower
 
+def _printRootCount(numRoots):
+    """Prints how many roots are being returned, closing out the solver's progress marks."""
+    finish_string = '\n' + f"Found {numRoots} roots"
+    print((finish_string if numRoots != 1 else finish_string[:-1]),end='\n\n')
+
 def solve(funcs,a=-1,b=1, verbose = False, returnBoundingBoxes = False, exact=False, minBoundingIntervalSize=1e-5):
     """Finds and returns the roots of a system of functions on the search interval [a,b].
 
@@ -146,8 +151,8 @@ def solve(funcs,a=-1,b=1, verbose = False, returnBoundingBoxes = False, exact=Fa
         print(f"Searching on interval {[[a[i],b[i]] for i in range(dim)]}")
 
     #Solve the Chebyshev polynomial system
-    yroots, boundingBoxes = ChebyshevSubdivisionSolver.solveChebyshevSubdivision(polys,errs,verbose,True,exact,
-                constant_check=True, low_dim_quadratic_check=True, all_dim_quadratic_check=False)
+    boundingBoxes = ChebyshevSubdivisionSolver.solveChebyshevSubdivision(polys,errs,verbose,exact,
+        constant_check=True, low_dim_quadratic_check=True, all_dim_quadratic_check=False)
     
     #If the bounding box is the entire interval, subdivide it!
     usingSubdivision = np.all(b-a > minBoundingIntervalSize)
@@ -175,6 +180,8 @@ def solve(funcs,a=-1,b=1, verbose = False, returnBoundingBoxes = False, exact=Fa
             #Always hand back arrays of the documented shape, even when nothing was found
             yroots = np.empty((0,dim))
             boundingBoxes = np.empty((0,dim,2))
+        if verbose:
+            _printRootCount(len(yroots))
         if returnBoundingBoxes:
             return yroots, boundingBoxes
         else:
@@ -218,6 +225,8 @@ def solve(funcs,a=-1,b=1, verbose = False, returnBoundingBoxes = False, exact=Fa
         finalRoots = np.empty((0,dim))
     
     # Find and return the roots (and, optionally, the bounding boxes)
+    if verbose:
+        _printRootCount(len(finalRoots))
     if returnBoundingBoxes:
         return finalRoots, finalBoxes
     else:
