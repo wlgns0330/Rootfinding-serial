@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 """Benchmark yroots on the sparse polynomial test suite.
 
-For every degree in a range, this solves ``num_tests`` systems of ``dim`` sparse
-power basis polynomials on [-1, 1]^dim and writes, under
-``<results>/dim{dim}/nonzero{nonzero}/``:
+For every degree in the range below, this solves num_tests systems of dim
+sparse power basis polynomials on [-1, 1]^dim and writes, under
+``<result_dir>/dim{dim}/nonzero{nonzero}/``:
 
     avg_times.txt              average solve time, one value per degree
     max_resids.txt             max |f_i(root)|, one value per degree
@@ -13,10 +13,8 @@ power basis polynomials on [-1, 1]^dim and writes, under
 
 The .txt files hold one plain value per line in degree order; the JSON files
 match the layout the Julia benchmark writes, so the two can be diffed directly.
-Pass --append to add degrees to an existing run instead of overwriting it.
 """
 
-import argparse
 import json
 import time
 from pathlib import Path
@@ -25,24 +23,18 @@ import numpy as np
 import yroots as yr
 from yroots import MultiPower
 
+# Test configuration
+dim = 2
+mindeg = 2
+maxdeg = 30
+nonzero = 3
+num_tests = 100
+
+coeff_dir = Path("../sparse/coeffs")
+result_dir = Path("../sparse/results/yroots_results")
+append = False  # True to add degrees to an existing run instead of overwriting it
+
 SUMMARIES = ("avg_times", "max_resids", "avg_resids", "sum_resids")
-
-
-def parse_args():
-    p = argparse.ArgumentParser(description=__doc__,
-                                formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--dim", type=int, default=2, help="dimension of each system")
-    p.add_argument("--min-deg", type=int, default=2, help="first degree to test")
-    p.add_argument("--max-deg", type=int, default=30, help="last degree to test")
-    p.add_argument("--nonzero", type=int, default=3, help="nonzero terms per polynomial")
-    p.add_argument("--num-tests", type=int, default=100, help="tests to run per degree")
-    p.add_argument("--coeffs", type=Path, default=Path("../sparse/coeffs"),
-                   help="directory holding dim*/deg*/num*.npy")
-    p.add_argument("--results", type=Path, default=Path("../sparse/results/yroots_results"),
-                   help="directory to write results into")
-    p.add_argument("--append", action="store_true",
-                   help="append to existing summary files instead of overwriting them")
-    return p.parse_args()
 
 
 def load_degree(coeff_dir, dim, deg, nonzero):
@@ -96,32 +88,28 @@ def append_value(path, value):
 
 
 def main():
-    args = parse_args()
-    dim, nonzero = args.dim, args.nonzero
-    degrees = range(args.min_deg, args.max_deg + 1)
-
-    base_dir = args.results / f"dim{dim}" / f"nonzero{nonzero}"
+    base_dir = result_dir / f"dim{dim}" / f"nonzero{nonzero}"
     roots_dir = base_dir / "roots"
     roots_dir.mkdir(parents=True, exist_ok=True)
 
     summary_paths = {name: base_dir / f"{name}.txt" for name in SUMMARIES}
-    if not args.append:
+    if not append:
         for path in summary_paths.values():
             path.write_text("")
 
-    for deg in degrees:
-        print(f"--- Dim {dim} Degree {deg}/{args.max_deg} ---", flush=True)
-        tests = load_degree(args.coeffs, dim, deg, nonzero)
-        num_tests = min(args.num_tests, len(tests))
+    for deg in range(mindeg, maxdeg + 1):
+        print(f"--- Dim {dim} Degree {deg}/{maxdeg} ---", flush=True)
+        tests = load_degree(coeff_dir, dim, deg, nonzero)
+        reps = min(num_tests, len(tests))
 
-        if deg == degrees.start:
+        if deg == mindeg:
             # Warm up numba's JIT so it isn't charged to the first timed test.
             solve_test([MultiPower(c) for c in coeff_matrix(tests[0], dim, deg)], dim)
 
         times, all_res, roots_by_test = [], [], {}
-        for test in range(num_tests):
+        for test in range(reps):
             if (test + 1) % 10 == 0:
-                print(f"  test {test + 1}/{num_tests}", flush=True)
+                print(f"  test {test + 1}/{reps}", flush=True)
 
             funcs = [MultiPower(c) for c in coeff_matrix(tests[test], dim, deg)]
             roots, elapsed = solve_test(funcs, dim)
