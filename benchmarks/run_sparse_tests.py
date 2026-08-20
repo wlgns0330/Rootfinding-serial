@@ -16,12 +16,18 @@ match the layout the Julia benchmark writes, so the two can be diffed directly.
 """
 
 import json
+import sys
 import time
 from pathlib import Path
 
 import numpy as np
-import yroots as yr
-from yroots import MultiPower
+
+# Import yroots from this checkout instead of whatever is installed.
+yroots_dir = Path("/data1/acme/Roots/hyun/Rootfinding-serial")
+sys.path.insert(0, str(yroots_dir))
+
+import yroots as yr  # noqa: E402
+from yroots import MultiPower  # noqa: E402
 
 # Test configuration
 dim = 2
@@ -88,6 +94,8 @@ def append_value(path, value):
 
 
 def main():
+    print(f"Using yroots from {Path(yr.__file__).parent}", flush=True)
+
     base_dir = result_dir / f"dim{dim}" / f"nonzero{nonzero}"
     roots_dir = base_dir / "roots"
     roots_dir.mkdir(parents=True, exist_ok=True)
