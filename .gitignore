@@ -1,0 +1,14 @@
+# Python bytecode and numba's on-disk compile cache (yroots/__pycache__/*.nbi, *.nbc)
+__pycache__/
+*.py[cod]
+
+# Virtual environments and packaging output
+.venv/
+build/
+dist/
+*.egg-info/
+
+# Test and coverage output
+.pytest_cache/
+.coverage
+htmlcov/
