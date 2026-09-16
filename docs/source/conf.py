@@ -48,12 +48,20 @@ exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 html_theme = 'yroots'
 html_theme_path = ['_theme']
 html_title = 'YRoots documentation'
+# Built by GitHub Actions, GITHUB_REPOSITORY names the repository publishing
+# the site, so these links follow this repository wherever it lives -- here or
+# upstream -- without being edited. The sibling repositories keep their names
+# under either owner; only the owner differs. The fallback keeps a local build
+# pointing somewhere real.
+_repository = os.environ.get('GITHUB_REPOSITORY', 'wlgns0330/Rootfinding-serial')
+_owner = _repository.split('/')[0]
+
 html_theme_options = {
-    # This fork publishes only the API docs, so the header points back at the
-    # project's landing page on the parallel fork's site.
-    'landing_url': 'https://wlgns0330.github.io/RootFinding/',
-    'repo_url': 'https://github.com/wlgns0330/Rootfinding-serial',
-    'sibling_url': 'https://github.com/wlgns0330/RootFinding',
+    # This repository publishes only the API docs, so the header points back at
+    # the project's landing page, which the parallel repository's site carries.
+    'landing_url': f'https://{_owner}.github.io/RootFinding/',
+    'repo_url': f'https://github.com/{_repository}',
+    'sibling_url': f'https://github.com/{_owner}/RootFinding',
     'sibling_label': 'yroots (parallel)',
 }
 
