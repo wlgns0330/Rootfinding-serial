@@ -20,7 +20,7 @@ sys.path.insert(0, os.path.abspath('../..'))  # points at repo root
 project = 'YRoots'
 copyright = '2023-2026, BYU Math'
 author = 'BYU Math'
-root_doc = "modules"
+root_doc = "index"
 
 
 # -- General configuration ---------------------------------------------------
@@ -45,7 +45,17 @@ exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = 'alabaster'
+html_theme = 'yroots'
+html_theme_path = ['_theme']
+html_title = 'YRoots documentation'
+html_theme_options = {
+    # This fork publishes only the API docs, so the header points back at the
+    # project's landing page on the parallel fork's site.
+    'landing_url': 'https://wlgns0330.github.io/RootFinding/',
+    'repo_url': 'https://github.com/wlgns0330/Rootfinding-serial',
+    'sibling_url': 'https://github.com/wlgns0330/RootFinding',
+    'sibling_label': 'yroots (parallel)',
+}
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
