@@ -539,8 +539,13 @@ class TrackedInterval:
         Where the midpoint of the next subdivision should be for each dimension.
     """
     def __init__(self, interval):
-        self.topInterval = interval
-        self.interval = np.array(interval)
+        #Every computation on an interval produces reals, so the stored arrays are float64 whatever
+        #the caller handed in. An integer array would silently truncate each new bound to a whole
+        #number -- shrinking onto 0.5 would store 0 -- and a float32 one would drop half the digits
+        #the solver relies on. asarray keeps the caller's array when it is already float64, so the
+        #normal path is unchanged.
+        self.topInterval = np.asarray(interval, dtype=np.float64)
+        self.interval = np.array(interval, dtype=np.float64)
         self.transforms = []
         self.ndim = len(self.interval)
         self.empty = False
@@ -563,6 +568,11 @@ class TrackedInterval:
             The subinterval to which the current interval is being reduced
         """
         #Ensure the interval has non zero size; mark it empty if it doesn't
+        #Match the stored interval's dtype. Only a caller passing something other than float64 takes
+        #a copy here, so the clamping below still writes through to the caller's array on the path
+        #the solver itself uses, where the same subInterval is reused across calls.
+        if subInterval.dtype != np.float64:
+            subInterval = subInterval.astype(np.float64)
         isEmpty = (subInterval[:,0] > subInterval[:,1]).any()
         if isEmpty and self.canThrowOut():
             self.empty = True

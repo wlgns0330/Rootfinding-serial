@@ -62,16 +62,33 @@ def evaluateGrid(f, cheb_grid, shape):
     values : numpy array
         The value of f at each grid point, of shape ``shape``.
     """
-    try:
-        values = np.asarray(f(*cheb_grid), dtype=float)
-        if values.shape == shape:
-            return values
-        # A function that does not depend on every input hands back something smaller.
-        return np.broadcast_to(values, shape)
-    except Exception:
-        # f did not take the whole grid at once; evaluate it one point at a time instead.
+    def pointByPoint():
+        """Evaluate f once per grid point, the way this was always done."""
         cheb_pts = np.column_stack(tuple(map(lambda x: x.flatten(), cheb_grid)))
         return np.array([f(*cheb_pt) for cheb_pt in cheb_pts]).reshape(shape)
+
+    try:
+        values = np.asarray(f(*cheb_grid), dtype=float)
+    except Exception as wholeGridFailure:
+        # f did not take the whole grid at once; evaluate it one point at a time instead. If that
+        # fails too then f is broken rather than merely unvectorized, and the failure it raises on
+        # a single point is a confusing artifact of being handed scalars -- report what went wrong
+        # on the grid instead, which is the error that actually describes the bug.
+        try:
+            return pointByPoint()
+        except Exception:
+            raise wholeGridFailure
+
+    if values.shape == shape:
+        return values
+    if values.size == 1:
+        # A function that ignores its inputs hands back a single value for the whole grid. That is
+        # the only shape other than the grid's own that lands on it unambiguously.
+        return np.full(shape, values.reshape(-1)[0])
+    # Anything else cannot be placed on the grid without guessing. numpy would right align it,
+    # which on a square grid spreads the values along the wrong axis and returns them as though
+    # they were correct, so take the slow path instead: it cannot get the orientation wrong.
+    return pointByPoint()
 
 def interval_approximate_nd(f, degs, a, b, retSupNorm = False):
     """Generates an approximation of f on [a,b] using Chebyshev polynomials of degs degrees.
@@ -210,7 +227,16 @@ def getFinalDegree(coeff,tol,macheps = 2**-52):
     """
     # Set the final degree to the position of the last coefficient greater than convergence value
     convergedDeg = int(3 * (len(coeff) - 1) / 4) # Assume convergence at degree 3n/2.
-    epsVal = 2*max(macheps,np.max(coeff[convergedDeg:])) # Set epsVal to 2x the largest coefficient past degree 3n/2
+    maxSpot = np.argmax(coeff)
+    peak = coeff[maxSpot]
+    #Floor the convergence value relative to the largest coefficient rather than at an absolute
+    #macheps. Rounding puts the noise floor at macheps times the largest coefficient, so an
+    #absolute floor is only right for a function that happens to be of order 1. Scale a system
+    #down and the floor swamps the coefficients it is meant to sit under: the measured decay rate
+    #comes out below 1, getApproxError sums the tail as 1/(rho-1) and returns a NEGATIVE error
+    #bound, and the solver discards the intervals its roots are in. The relative floor also makes
+    #the reported error scale with the function, as an error bound should.
+    epsVal = 2*max(macheps*peak,np.max(coeff[convergedDeg:])) # 2x the largest coefficient past degree 3n/2
     nonZeroCoeffs = np.where(coeff > epsVal)[0]
     degree = 1 if len(nonZeroCoeffs) == 0 else max(1, nonZeroCoeffs[-1])
 
@@ -219,14 +245,17 @@ def getFinalDegree(coeff,tol,macheps = 2**-52):
         degree = 0
     
     # Calculate the rate of convergence
-    maxSpot = np.argmax(coeff)
-    if coeff[maxSpot] == 0:
+    if peak == 0:
         #Every coefficient is 0, so the approximation is exact. Report perfect convergence
         #instead of dividing 0 by epsVal, which would give a rate of 0 (and a negative error bound).
         return degree, 0, np.inf
-    if epsVal == 0: #Avoid divide by 0. epsVal shouldn't be able to shrink by more than 1e-24 cause floating point.
-         epsVal = coeff[maxSpot] * 1e-24
-    rho = (coeff[maxSpot]/epsVal)**(1/((degree - maxSpot) + 1)) 
+    #A rho of 1 or less makes getApproxError's 1/(rho-1) negative, so hold the exponent at 1 or
+    #more, which the ratio above being greater than 1 then carries into rho itself.
+    rho = (peak/epsVal)**(1/max(1, (degree - maxSpot) + 1))
+    if not rho > 1:
+        #The coefficients show no measurable decay, so there is no geometric tail to sum. Report
+        #the slowest rate that still gives a finite, non-negative bound rather than a negative one.
+        rho = 1 + macheps
     return degree, epsVal, rho
 
 def checkConstantInDimension(f,a,b,currDim, relApproxTol, absApproxTol = 0):
