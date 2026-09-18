@@ -53,7 +53,7 @@ html_title = 'YRoots documentation'
 # upstream -- without being edited. The sibling repositories keep their names
 # under either owner; only the owner differs. The fallback keeps a local build
 # pointing somewhere real.
-_repository = os.environ.get('GITHUB_REPOSITORY', 'wlgns0330/Rootfinding-serial')
+_repository = os.environ.get('GITHUB_REPOSITORY', 'tylerjarvis/Rootfinding-serial')
 _owner = _repository.split('/')[0]
 
 html_theme_options = {
