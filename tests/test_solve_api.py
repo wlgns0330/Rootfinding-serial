@@ -1,9 +1,12 @@
 """Unit tests for the public yroots.solve API (yroots.Combined_Solver)."""
+import contextlib
+import signal
+
 import numpy as np
 import pytest
 
 import yroots as yr
-from yroots.Combined_Solver import solve
+from yroots.Combined_Solver import relativeRoundingError, solve
 
 
 def sorted_rows(array):
@@ -181,6 +184,118 @@ def test_ill_conditioned_system_keeps_its_root(eps):
 
     assert len(roots) == 1, f"root lost for a system with condition number ~{1/eps:.0e}"
     assert np.allclose(roots[0], [0.3, 0.0], atol=1e-6)
+
+
+############################### polynomial input at any scale ################
+
+@contextlib.contextmanager
+def fails_instead_of_hanging(seconds):
+    """Turn a hang into a test failure.
+
+    Every regression below used to hang (or recurse until python's stack limit) rather than
+    fail, which would stall the whole suite instead of reporting one broken test. Needs
+    SIGALRM, so on a platform without it the body just runs unguarded.
+    """
+    if not hasattr(signal, "setitimer"):
+        yield
+        return
+
+    def give_up(signum, frame):
+        raise TimeoutError(f"solve did not finish within {seconds}s")
+
+    previous = signal.signal(signal.SIGALRM, give_up)
+    signal.setitimer(signal.ITIMER_REAL, seconds)
+    try:
+        yield
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        signal.signal(signal.SIGALRM, previous)
+
+
+# y = x^2 and y = x^3 - x/2 meet at x = 0 and at x = (1 - sqrt 3)/2; the third crossing,
+# x = (1 + sqrt 3)/2, is outside both search boxes used below.
+_X0 = (1 - np.sqrt(3)) / 2
+TWO_CURVES_ROOTS = np.array([[_X0, _X0 ** 2], [0.0, 0.0]])
+
+
+def two_curves(scale, kind):
+    """The two-curve system above as polynomial objects, every coefficient times ``scale``."""
+    parabola = np.zeros((4, 2))
+    parabola[0, 1], parabola[2, 0] = 1, -1                                # y - x^2
+    cubic = np.zeros((4, 2))
+    cubic[0, 1], cubic[3, 0], cubic[1, 0] = 1, -1, 0.5                    # y - x^3 + x/2
+    polys = [yr.MultiPower(scale * parabola), yr.MultiPower(scale * cubic)]
+    if kind is yr.MultiCheb:
+        polys = [yr.MultiCheb(p.to_cheb()) for p in polys]
+    return polys
+
+
+@pytest.mark.parametrize("box", [([-1, -1], [1, 1]), ([-0.9, -1.2], [1.1, 0.8])],
+                         ids=["unit box", "shifted box"])
+@pytest.mark.parametrize("kind", [yr.MultiPower, yr.MultiCheb], ids=["MultiPower", "MultiCheb"])
+@pytest.mark.parametrize("scale", [1e8, 1, 1e-8, 1e-16, 1e-30])
+def test_polynomial_input_is_solved_at_any_scale(scale, kind, box):
+    """Regression test: a polynomial given as coefficients below order 1 was never solved.
+
+    Such a polynomial is exact, so its only error is rounding in its coefficients. That was
+    set to a fixed macheps, which is only the right size for coefficients of order 1: scaled
+    to 1e-14 it was about 2% of them and solve no longer finished, and from 1e-16 down it
+    exceeded every coefficient. Passed as callables the same system was solved at every
+    scale, since the approximator's error scales with the function.
+    """
+    with fails_instead_of_hanging(30):
+        roots = solve(two_curves(scale, kind), *box)
+
+    assert roots.shape == (2, 2)
+    assert np.allclose(sorted_rows(roots), TWO_CURVES_ROOTS, atol=1e-10)
+
+
+def test_the_polynomial_input_error_is_relative_to_the_coefficients():
+    """The error is macheps times the size of the coefficients, so it scales with them."""
+    coeff = np.array([[0.5, -3.0], [2.0, 0.25]])
+    macheps = 2 ** -52
+
+    assert relativeRoundingError(coeff) == macheps * 5.75
+    for scale in [1e8, 1e-30]:
+        assert np.isclose(relativeRoundingError(scale * coeff), scale * relativeRoundingError(coeff))
+
+
+def test_the_zero_polynomial_keeps_a_nonzero_error():
+    """A relative error of exactly 0 made solve report no roots for a polynomial that is
+    zero everywhere, which is worse than the loud failure it has otherwise (see
+    test_known_failures.py), so the zero polynomial keeps the fixed macheps."""
+    assert relativeRoundingError(np.zeros((3, 3))) == 2 ** -52
+
+
+def singular_4d_system(scale=1):
+    """Two independent copies of a double root at the origin, as MultiPower objects.
+
+    Same system as test_bounding_boxes.py's test_boxes_match_roots_4d_two_singularities:
+    (y - 2x)(y + x/2), x(x^2 + y^2 - 1), and the same two in (z, w). It has 25 roots.
+    """
+    f = np.zeros((3,) * 4); f[0, 2, 0, 0], f[1, 1, 0, 0], f[2, 0, 0, 0] = 1, -1.5, -1
+    g = np.zeros((4,) * 4); g[3, 0, 0, 0], g[1, 2, 0, 0], g[1, 0, 0, 0] = 1, 1, -1
+    h = np.zeros((3,) * 4); h[0, 0, 0, 2], h[0, 0, 1, 1], h[0, 0, 2, 0] = 1, -1.5, -1
+    k = np.zeros((4,) * 4); k[0, 0, 3, 0], k[0, 0, 1, 2], k[0, 0, 1, 0] = 1, 1, -1
+    return [yr.MultiPower(scale * c) for c in (f, g, h, k)]
+
+
+@pytest.mark.parametrize("scale", [1e8, 1, 1e-8, 1e-20])
+def test_a_4d_polynomial_system_with_singular_roots_is_solved_at_any_scale(scale):
+    """Regression test: this system crashed at scale 1 and did not finish at 1e-20.
+
+    The crash was getSubdivisionDims leaving nothing to subdivide in a nearly converged
+    box (see test_ChebyshevSubdivisionSolver.py); the fixed macheps error of polynomial
+    input then kept it from finishing at 1e-20. The count it reports is still wrong -- see
+    test_known_failures.py -- but it finishes, and every root it reports is a root.
+    """
+    polys = singular_4d_system(scale)
+    with fails_instead_of_hanging(30):
+        roots = solve(polys, -np.ones(4), np.ones(4))
+
+    assert len(roots) > 0
+    for p in polys:
+        assert np.max(np.abs(p(roots))) < 1e-12 * scale
 
 
 ############################### empty results ################################
