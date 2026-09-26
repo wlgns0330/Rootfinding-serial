@@ -1284,10 +1284,17 @@ def getSubdivisionDims(Ms,trackedInterval,level):
     """
     dim = len(Ms)
     dims_to_consider = np.arange(dim)
+    dim_lengths = trackedInterval.dimSize()
     for i in range(dim):
         if np.isclose(trackedInterval.interval[i,0], trackedInterval.interval[i,1]):
             if len(dims_to_consider) != 1:
                 dims_to_consider = np.delete(dims_to_consider, np.argwhere(dims_to_consider==i))
+    #When every dimension is narrower than isclose's 1e-8, which the final step routinely reaches, the
+    #loop keeps whichever came last. If that one has width exactly 0, the width filter below removes it
+    #and nothing is left to subdivide, while a wider dimension that could still be split was dropped.
+    #Keep the widest dimension instead in that case.
+    if len(dims_to_consider) == 1 and dim_lengths[dims_to_consider[0]] == 0:
+        dims_to_consider = np.array([np.argmax(dim_lengths)])
     if level > 5:
         return np.vstack([dims_to_consider[np.argsort(np.array(M.shape)[dims_to_consider])[::-1]] for M in Ms])
     else:
