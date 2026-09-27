@@ -17,12 +17,6 @@ The residual and location checks are deliberately kept apart: a root set can hav
 tiny residuals and still be wrong when the system is ill-conditioned near a root,
 and the two checks fail for different reasons.
 
-Case 6.1 is the one place where the solver and the reference legitimately disagree
-on the count: a double root sits at the origin, the reference records it once, and
-the solver reports it twice. That is stated outright rather than smoothed over --
-the case declares the duplicate, 6 roots are expected against the reference's 5,
-and the failure message names both numbers.
-
 Tolerances
 ----------
 ``DEFAULT_RESIDUAL_TOL`` and ``DEFAULT_ROOT_TOL`` cover most cases. The handful of
@@ -71,10 +65,6 @@ class Case:
         Lower and upper corners of the search box.
     residual_tol, root_tol : float
         Per-case overrides of the module defaults.
-    duplicate_root : numpy array, optional
-        A multiple root that the reference records once but the solver reports twice,
-        because it cannot separate the two branches meeting there. Only 6.1 has one.
-        The reference is expected to come up one root short, and the tests say so.
     """
 
     name: str
@@ -83,26 +73,11 @@ class Case:
     b: np.ndarray
     residual_tol: float = DEFAULT_RESIDUAL_TOL
     root_tol: float = DEFAULT_ROOT_TOL
-    duplicate_root: np.ndarray | None = None
-
-    @property
-    def polished_roots(self):
-        """The reference roots exactly as stored on disk, as an (n, 2) array."""
-        return np.load(POLISHED_DIR / f"polished_{self.name}.npy").reshape(-1, 2)
 
     @property
     def reference_roots(self):
-        """The roots the solver should report, as an (n, 2) array.
-
-        Same as ``polished_roots`` except where the system has a duplicate root: the
-        solver reports that one twice, so it is listed twice here and the ordinary
-        one-to-one matching applies unchanged.
-        """
-        roots = self.polished_roots
-        if self.duplicate_root is None:
-            return roots
-        nearest = np.argmin(np.linalg.norm(roots - self.duplicate_root, axis=1))
-        return np.vstack([roots, roots[nearest]])
+        """The reference roots exactly as stored on disk, as an (n, 2) array."""
+        return np.load(POLISHED_DIR / f"polished_{self.name}.npy").reshape(-1, 2)
 
     @property
     def expected_count(self):
@@ -172,8 +147,8 @@ CASES = [
                lambda x, y: ((y + .4)**3 - (x - .4)**2)*((y + .3)**3 - (x - .3)**2)*((y - .5)**3 - (x + .6)**2)*((y + 0.3)**3 - (2*x - 0.8)**3)],
         a=np.array([-1, -1]), b=np.array([1, 1]),
         # Products of near-tangent curves: the roots are badly conditioned even
-        # though the residuals stay at 1e-14. Measured root error 4.6e-8.
-        root_tol=1e-6,
+        # though the residuals stay at 1e-14. Measured root error 9.5e-11.
+        root_tol=1e-9,
     ),
     Case(
         name="1.3",
@@ -289,11 +264,7 @@ CASES = [
                lambda x, y: x*(x**2 + y**2 - 1)],
         a=np.array([-1, -1]), b=np.array([1, 1]),
         # A double root sits at the origin, where both factors of f vanish along
-        # with g. The reference records it once; the solver cannot separate the two
-        # branches and reports it as a pair straddling the origin at y = +-9.0e-9.
-        # So 6 roots are expected here against the polished reference's 5.
-        duplicate_root=np.array([0.0, 0.0]),
-        root_tol=1e-7,
+        # with g. It is reported once, at y = -3.7e-14.
     ),
     Case(
         name="6.2",
@@ -384,17 +355,10 @@ CASE_IDS = [case.name for case in CASES]
 @pytest.mark.parametrize("case", CASES, ids=CASE_IDS)
 def test_finds_the_expected_number_of_roots(case):
     found = roots_of(case)
-    if case.duplicate_root is not None:
-        assert len(found) == case.expected_count, (
-            f"Test {case.name}: YRoots found {len(found)} roots, but it should find "
-            f"{case.expected_count}, one of which is a duplicate root. By reference, "
-            f"polished roots has {len(case.polished_roots)}!"
-        )
-    else:
-        assert len(found) == case.expected_count, (
-            f"Test {case.name}: YRoots found {len(found)} roots, but the "
-            f"polished roots reference has {case.expected_count}!"
-        )
+    assert len(found) == case.expected_count, (
+        f"Test {case.name}: YRoots found {len(found)} roots, but the "
+        f"polished roots reference has {case.expected_count}!"
+    )
 
 
 @pytest.mark.parametrize("case", CASES, ids=CASE_IDS)

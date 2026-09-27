@@ -304,14 +304,56 @@ def test_a_root_on_an_axis_next_to_a_close_neighbour(d):
 
     Solving it zooms x down to a subnormal width, and numba computed the power of two used to
     rescale that row as 0.0 (see test_boundingIntervalCore_handles_a_subnormal_linear_term).
-    The two roots, (0, 0) and (0, d), are close enough that the solver reports one point between
-    them; that is its resolution limit, so only the crash is asserted here.
     """
     roots = solve([lambda x, y: x + 0 * y, lambda x, y: y * (y - d)], [-1, -1], [1, 1])
 
+    assert np.allclose(sorted_rows(roots), [[0, 0], [0, d]], rtol=0, atol=1e-12 * d)
+
+
+############################### close and multiple roots #####################
+
+@pytest.mark.parametrize("d", [1e-6, 1e-7, 3e-8, 1e-8, 1e-10, 1e-12])
+def test_two_roots_closer_than_sqrt_macheps_are_both_found(d):
+    """Regression test: two roots closer than about 1.5e-7 came back as one point between them.
+
+    Between the roots y(y - d) dips only to -(d/2)^2, below the error of an approximation on
+    the whole search box once d is under about sqrt(macheps). The box such a pair ends up in stays
+    wide, so solve approximates again on a neighborhood of it, where the error is far smaller.
+    """
+    roots = solve([lambda x, y: x + 0 * y, lambda x, y: y * (y - d)], [-1, -1], [1, 1])
+
+    assert np.allclose(sorted_rows(roots), [[0, 0], [0, d]], rtol=0, atol=1e-3 * d)
+
+
+def test_two_close_roots_away_from_the_origin_and_off_the_axes_are_both_found():
+    d = 1e-9
+    roots = solve([lambda x, y: (x - y) * (x - y - d), lambda x, y: x + y - 0.5], [-1, -1], [1, 1])
+
+    expected = [[0.25, 0.25], [0.25 + d / 2, 0.25 - d / 2]]
+    assert np.allclose(sorted_rows(roots), expected, rtol=0, atol=1e-3 * d)
+
+
+def test_a_double_root_is_reported_once():
+    """y^2 = 0 has one root. On a small enough neighborhood its dip vanishes into the error and
+    solving there finds nothing, so the root found on the whole box has to be kept."""
+    roots = solve([lambda x, y: x + 0 * y, lambda x, y: y * y], [-1, -1], [1, 1])
+
+    assert roots.shape == (1, 2)
+    assert np.all(np.abs(roots) < 1e-8)
+
+
+@pytest.mark.parametrize("d", [1e-7, 1e-8])
+def test_close_roots_of_a_function_with_absolute_rounding_error_do_not_hang(d):
+    """1 - cos(t) cancels inside the function, so it is off by about macheps near t = 0 however
+    small the neighborhood. Approximating it there needs an ever higher degree; solve has to give
+    up on the neighborhood and keep the point it found on the whole box, which lies between the
+    two roots."""
+    g = lambda x, y: 1 - np.cos(y - d / 2) - (d / 2) ** 2 / 2
+    with fails_instead_of_hanging(30):
+        roots = solve([lambda x, y: x + 0 * y, g], [-1, -1], [1, 1])
+
     assert len(roots) >= 1
-    assert np.all(np.abs(roots[:, 0]) < 1e-12)
-    assert np.all((roots[:, 1] > -1e-8) & (roots[:, 1] < d + 1e-8))
+    assert np.all((roots[:, 1] > -d) & (roots[:, 1] < 2 * d))
 
 
 ############################### empty results ################################

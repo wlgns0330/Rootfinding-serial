@@ -317,7 +317,10 @@ def checkConstantInDimension(f,a,b,currDim, relApproxTol, absApproxTol = 0):
     # Both test points had not zeros of f and had no variance along dimension currDim.
     return True
         
-def getChebyshevDegrees(f, a, b, relApproxTol, absApproxTol = 0):
+class DegreeCapExceeded(Exception):
+    """Raised when an approximation needs a higher degree than the caller allowed."""
+
+def getChebyshevDegrees(f, a, b, relApproxTol, absApproxTol = 0, maxDegree = None):
     """Compute the minimum degrees in each dimension that give a reliable Chebyshev approximation for f.
 
     For each dimension, starts with degree 8, generates an approximation, and checks to see if the
@@ -336,6 +339,8 @@ def getChebyshevDegrees(f, a, b, relApproxTol, absApproxTol = 0):
         The relative tolerance (distance from zero) used to determine convergence.
     absApproxTol : float
         The absolute tolerance (distance from zero) used to determine convergence.
+    maxDegree : int or None
+        If given, raise DegreeCapExceeded rather than try a degree above this.
     
     Returns
     -------
@@ -369,6 +374,8 @@ def getChebyshevDegrees(f, a, b, relApproxTol, absApproxTol = 0):
         currGuess = 8 # Take initial guess degree 8 in the current dimension
         tupleForChunk = tuple([i for i in range(currDim)] + [i for i in range(currDim+1,dim)])
         while True: # Runs until the coefficients are shown to converge to 0 in this dimension
+            if maxDegree is not None and currGuess > maxDegree:
+                raise DegreeCapExceeded(f"Approximation degree in dimension {currDim} exceeded {maxDegree}")
             if currGuess > 1e5:
                 warnings.warn(f"Approximation bound exceeded!\n\nApproximation degree in dimension {currDim} "
                               + "has exceeded 1e5, so the process may not finish.\n\nConsider interrupting "
@@ -447,7 +454,7 @@ def getApproxError(degs, epsilons, rhos):
         approxError += s * thisEps
     return approxError
 
-def chebApproximate(f, a, b, relApproxTol=1e-10):
+def chebApproximate(f, a, b, relApproxTol=1e-10, maxDegree=None):
     """Generate and return an approximation for the function f on the interval [a,b].
 
     Uses properties of Chebyshev polynomials and the FFT to quickly generate a reliable
@@ -501,6 +508,9 @@ def chebApproximate(f, a, b, relApproxTol=1e-10):
         converged to zero. If all coefficients after degree n are within relApproxTol * supNorm
         (the maximum function evaluation on the interval) of zero, the coefficients will be
         considered to have converged at degree n. Defaults to 1e-10.
+    maxDegree : int or None
+        Defaults to None, for no limit. If given, DegreeCapExceeded is raised instead of trying a degree
+        above it in any dimension.
     
     Returns
     -------
@@ -534,5 +544,5 @@ def chebApproximate(f, a, b, relApproxTol=1e-10):
         raise ValueError("Invalid input: length of the upper/lower bound lists must match the dimension of the function")
     
     # Generate and return the approximation
-    degs, epsilons, rhos = getChebyshevDegrees(f, a, b, relApproxTol)
+    degs, epsilons, rhos = getChebyshevDegrees(f, a, b, relApproxTol, maxDegree=maxDegree)
     return interval_approximate_nd(f, degs, a, b), getApproxError(degs, epsilons, rhos)
