@@ -7,6 +7,7 @@ from numpy.polynomial import chebyshev as C
 
 import yroots.ChebyshevSubdivisionSolver as S
 from yroots.ChebyshevSubdivisionSolver import (SolverOptions, TrackedInterval, TransformChebInPlace1D,
+                                               boundingIntervalCore,
                                                TransformChebInPlace1DErrorFree, TransformChebInPlaceND,
                                                BoundingIntervalLinearSystem, getLinearTerms, linearCheck1,
                                                getInverseOrder, getSubdivisionDims, getSubdivisionIntervals,
@@ -263,6 +264,28 @@ def test_linearCheck1_intersects_the_bounds_from_every_row():
 
 
 ############################ BoundingIntervalLinearSystem ####################
+
+
+def test_boundingIntervalCore_handles_a_subnormal_linear_term():
+    """Regression test: a subnormal linear term made the compiled core divide by zero.
+
+    These are the exact inputs it received in the final step of solving x = 0, y(y - 1e-7) = 0:
+    x had been zoomed down to a near-zero width, leaving a linear term of 3.95e-323. Row scaling
+    divides by the power of two below it, computed as 2.**int(k); numba evaluates that as 0.0 for
+    k < -1022, so the compiled function raised ZeroDivisionError where python gets 2**-1071.
+    """
+    def inputs():
+        return (np.array([[3.9525251667299724e-323, 0.0], [0.0, 1.0878004888974596e-15]]),
+                np.array([0.0, -6.017044613648241e-16]),
+                np.array([3.9525251667299724e-323, 3.4411846738256373e-15]),
+                np.array([0.0, 1.7516797235633535e-15]),
+                np.array([0.0, 0.0]), True, 2.0**-52)
+
+    compiled = boundingIntervalCore(*inputs())
+    python = boundingIntervalCore.py_func(*inputs())
+
+    assert np.allclose(compiled[0], python[0], rtol=0, atol=1e-15)
+    assert compiled[1:] == python[1:]
 
 def test_bounding_interval_shrinks_around_a_known_root():
     Ms = [linear_cheb(2, 0, 0.5), linear_cheb(2, 1, -0.25)]

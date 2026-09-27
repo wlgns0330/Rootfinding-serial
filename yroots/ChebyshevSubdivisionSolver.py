@@ -838,7 +838,11 @@ def boundingIntervalCore(A, consts, totalErrs, err, errors, finalStep, macheps):
             if abs(A[i,j]) > scaleVal:
                 scaleVal = abs(A[i,j])
         if scaleVal > 0:
-            s = 2.**int(np.floor(np.log2(scaleVal)))
+            #A float exponent, not int(...): numba evaluates 2.**k for an integer k < -1022 as 0.0
+            #rather than the subnormal power of two, and the divisions below then raise
+            #ZeroDivisionError. Linear terms that small arise in the final step, once a dimension
+            #has been zoomed down to a near-zero width.
+            s = 2.**np.floor(np.log2(scaleVal))
             for j in range(dim):
                 A[i,j] /= s
             consts[i] /= s

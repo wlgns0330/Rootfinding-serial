@@ -298,6 +298,22 @@ def test_a_4d_polynomial_system_with_singular_roots_is_solved_at_any_scale(scale
         assert np.max(np.abs(p(roots))) < 1e-12 * scale
 
 
+@pytest.mark.parametrize("d", [1e-7, 2e-8])
+def test_a_root_on_an_axis_next_to_a_close_neighbour(d):
+    """Regression test: x = 0, y(y - d) = 0 raised ZeroDivisionError from the compiled core.
+
+    Solving it zooms x down to a subnormal width, and numba computed the power of two used to
+    rescale that row as 0.0 (see test_boundingIntervalCore_handles_a_subnormal_linear_term).
+    The two roots, (0, 0) and (0, d), are close enough that the solver reports one point between
+    them; that is its resolution limit, so only the crash is asserted here.
+    """
+    roots = solve([lambda x, y: x + 0 * y, lambda x, y: y * (y - d)], [-1, -1], [1, 1])
+
+    assert len(roots) >= 1
+    assert np.all(np.abs(roots[:, 0]) < 1e-12)
+    assert np.all((roots[:, 1] > -1e-8) & (roots[:, 1] < d + 1e-8))
+
+
 ############################### empty results ################################
 
 def test_no_roots_returns_an_empty_array_of_the_right_shape():
