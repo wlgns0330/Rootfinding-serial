@@ -2,6 +2,7 @@ import numpy as np
 from numba import njit
 import itertools
 import functools
+import warnings
 import yroots.ChebyshevSubdivisionSolver as ChebyshevSubdivisionSolver
 import yroots.ChebyshevApproximator as ChebyshevApproximator
 from yroots.polynomial import MultiCheb,MultiPower
@@ -37,7 +38,25 @@ REFINE_PADDING = 2
 #keeps doubling its degree, so this is where refinement gives up and the box keeps what it had.
 REFINE_MAX_DEGREE = 100
 
-def _refineWideBoxes(funcs, a, b, entries, **solveKwargs):
+def _warnDuplicateRoots(dupSets):
+    """Warns once about every set of roots that could not be told apart from each other.
+
+    Parameters
+    ----------
+    dupSets : list of numpy array
+        One (k, dim) array per bounding box that reports k > 1 roots, in the original coordinates.
+    """
+    if len(dupSets) == 0:
+        return
+    def formatRoot(root):
+        return "(" + ", ".join(f"{x:.16g}" for x in root) + ")"
+    lines = [f"  Set {i+1}: " + ", ".join(formatRoot(root) for root in roots)
+             for i, roots in enumerate(dupSets)]
+    warnings.warn("The roots in each of the following sets might be duplicates of each other:\n"
+                  + "\n".join(lines)
+                  + "\nWe suggest you check the rank of the Jacobian at these points.")
+
+def _refineWideBoxes(funcs, a, b, entries, dupSets, **solveKwargs):
     """Solve again around each root whose final box is wide, and replace that box's roots with what is found.
 
     Two roots closer than about sqrt(macheps) times the width of the interval an approximation was built
@@ -54,8 +73,11 @@ def _refineWideBoxes(funcs, a, b, entries, **solveKwargs):
     a, b : numpy array
         The bounds of the search interval the boxes were found on.
     entries : list
-        One (roots, boxes, isWide) triple per final box, in the original coordinates, where roots has
-        shape (k, dim), boxes shape (k, dim, 2), and isWide says whether the box is to be solved again.
+        One (roots, boxes, isWide, isDupSet) tuple per final box, in the original coordinates, where roots
+        has shape (k, dim), boxes shape (k, dim, 2), isWide says whether the box is to be solved again, and
+        isDupSet whether its k > 1 roots might be duplicates of each other.
+    dupSets : list
+        The duplicate sets that the solves made here find among the roots they hand back are added to it.
     solveKwargs
         Passed through to solve.
 
@@ -72,7 +94,7 @@ def _refineWideBoxes(funcs, a, b, entries, **solveKwargs):
     #neighborhood belongs to.
     allBoxes = np.vstack([entry[1] for entry in entries]) / scale[:, np.newaxis]
     boxOwner = np.concatenate([[k] * len(entry[1]) for k, entry in enumerate(entries)])
-    for k, (roots, boxes, isWide) in enumerate(entries):
+    for k, (roots, boxes, isWide, isDupSet) in enumerate(entries):
         if not isWide:
             continue
         box = boxes[0]
@@ -81,9 +103,10 @@ def _refineWideBoxes(funcs, a, b, entries, **solveKwargs):
         halfWidth = REFINE_PADDING * np.max((box[:, 1] - box[:, 0]) / scale) * scale
         newA = np.maximum(box[:, 0] - halfWidth, a)
         newB = np.minimum(box[:, 1] + halfWidth, b)
+        found = []
         try:
             newRoots, newBoxes = solve(funcs, newA, newB, returnBoundingBoxes=True, _refine=False,
-                                       _maxDegree=REFINE_MAX_DEGREE, **solveKwargs)
+                                       _maxDegree=REFINE_MAX_DEGREE, _dupSets=found, **solveKwargs)
         except (RecursionError, ChebyshevApproximator.DegreeCapExceeded):
             continue
         if len(newRoots) == 0:
@@ -95,11 +118,15 @@ def _refineWideBoxes(funcs, a, b, entries, **solveKwargs):
                                       scaledRoots - allBoxes[np.newaxis, :, :, 1]), axis=2)
         own = boxOwner[np.argmin(distances, axis=1)] == k
         if np.any(own):
-            entries[k] = (newRoots[own], newBoxes[own], False)
+            entries[k] = (newRoots[own], newBoxes[own], False, False)
+            #Keep only the duplicate sets among the roots this box keeps.
+            ownRoots = newRoots[own]
+            dupSets.extend(roots_ for roots_ in found
+                           if all(np.any(np.all(root == ownRoots, axis=1)) for root in roots_))
     return entries
 
 def solve(funcs,a=-1,b=1, verbose = False, returnBoundingBoxes = False, exact=False, minBoundingIntervalSize=1e-5,
-          _refine=True, _maxDegree=None):
+          _refine=True, _maxDegree=None, _dupSets=None):
     """Finds and returns the roots of a system of functions on the search interval [a,b].
 
     Generates an approximation for each function using Chebyshev polynomials on the interval given,
@@ -182,6 +209,9 @@ def solve(funcs,a=-1,b=1, verbose = False, returnBoundingBoxes = False, exact=Fa
         False on the solves that refinement itself makes, so it happens once.
     _maxDegree : int or None
         Internal. The highest degree a callable's approximation may take (see REFINE_MAX_DEGREE).
+    _dupSets : list or None
+        Internal. Where the solves this one makes collect the sets of roots that might be duplicates, so
+        the call the user made warns about all of them once. None on that call.
 
     Returns
     -------
@@ -191,6 +221,11 @@ def solve(funcs,a=-1,b=1, verbose = False, returnBoundingBoxes = False, exact=Fa
         Only returned when ``returnBoundingBoxes`` is True. The exact intervals (boxes) in
         which each root is bound to lie.
     """
+    #Only the call the user made warns; the solves it makes again add their duplicate sets to its list.
+    isTopLevel = _dupSets is None
+    if isTopLevel:
+        _dupSets = []
+
     # Ensure input functions and upper/lower bounds are valid
     if type(funcs) != list and type(funcs) != np.ndarray:
         funcs = [funcs]
@@ -263,7 +298,7 @@ def solve(funcs,a=-1,b=1, verbose = False, returnBoundingBoxes = False, exact=Fa
             if verbose:
                 print("Re-solving on:", newA, newB)
             roots, boxes = solve(funcs, a=newA, b=newB, verbose=verbose, returnBoundingBoxes=True, exact=exact, minBoundingIntervalSize = minBoundingIntervalSize,
-                                 _refine=_refine, _maxDegree=_maxDegree)
+                                 _refine=_refine, _maxDegree=_maxDegree, _dupSets=_dupSets)
             if len(roots) != 0:
                 boundingBoxes.append(boxes)
                 yroots.append(roots)
@@ -276,16 +311,17 @@ def solve(funcs,a=-1,b=1, verbose = False, returnBoundingBoxes = False, exact=Fa
             boundingBoxes = np.empty((0,dim,2))
         if verbose:
             _printRootCount(len(yroots))
+        if isTopLevel:
+            _warnDuplicateRoots(_dupSets)
         if returnBoundingBoxes:
             return yroots, boundingBoxes
         else:
             return yroots
     
-    #TODO: Handle if we have duplicate roots or extra roots at the top level. Easiest if we actually return the bounding boxes!
-    #Maybe return the bounding boxes in the recursive steps?
-    
+    #TODO: Handle if we have extra roots at the top level.
+
     #If any of the bounding boxes is too large, re-solve that box.
-    #Each entry is (roots, boxes, isWide); see _refineWideBoxes.
+    #Each entry is (roots, boxes, isWide, isDupSet); see _refineWideBoxes.
     entries = []
     #Get the relative max size in each dimension. If a or b > 1 in magnitude, minBoundingIntervalSize is a relative number.
     #If they are < 1 in magnitude, it is an absolute number.
@@ -298,9 +334,9 @@ def solve(funcs,a=-1,b=1, verbose = False, returnBoundingBoxes = False, exact=Fa
             if verbose:
                 print("Re-solving on:", newA, newB)
             roots, boxes = solve(funcs, a=newA, b=newB, verbose=verbose, returnBoundingBoxes=True, exact=exact, minBoundingIntervalSize=minBoundingIntervalSize,
-                                 _refine=_refine, _maxDegree=_maxDegree)
+                                 _refine=_refine, _maxDegree=_maxDegree, _dupSets=_dupSets)
             if len(roots) > 0:
-                entries.append((roots, boxes, False))
+                entries.append((roots, boxes, False, False))
         else:
             #Transform back
             transformedBox = ChebyshevApproximator.transform(box.finalInterval.T,a,b).T
@@ -310,14 +346,16 @@ def solve(funcs,a=-1,b=1, verbose = False, returnBoundingBoxes = False, exact=Fa
             boxRoots = ChebyshevSubdivisionSolver.getRootsInInterval(box)
             isWide = np.max((transformedBox[:,1] - transformedBox[:,0]) / scale) > REFINE_BOX_SIZE
             entries.append((ChebyshevApproximator.transform(np.array(boxRoots),a,b),
-                            np.repeat(transformedBox[np.newaxis], len(boxRoots), axis=0), isWide))
+                            np.repeat(transformedBox[np.newaxis], len(boxRoots), axis=0), isWide, len(boxRoots) > 1))
 
     #Only a callable is approximated again on a neighborhood. A polynomial given as coefficients is carried
     #there by transformCheb, whose error stays that of the coefficients however small the neighborhood.
     if _refine and any(entry[2] for entry in entries) and \
             not all(isinstance(f, (MultiPower, MultiCheb)) for f in funcs):
-        entries = _refineWideBoxes(funcs, a, b, entries, verbose=verbose, exact=exact,
+        entries = _refineWideBoxes(funcs, a, b, entries, _dupSets, verbose=verbose, exact=exact,
                                    minBoundingIntervalSize=minBoundingIntervalSize)
+    #The boxes refinement did not separate still report more than one root each.
+    _dupSets.extend(entry[0] for entry in entries if entry[3])
     finalRoots = [entry[0] for entry in entries]
     finalBoxes = [entry[1] for entry in entries]
     if len(finalBoxes) != 0:
@@ -332,6 +370,8 @@ def solve(funcs,a=-1,b=1, verbose = False, returnBoundingBoxes = False, exact=Fa
     # Find and return the roots (and, optionally, the bounding boxes)
     if verbose:
         _printRootCount(len(finalRoots))
+    if isTopLevel:
+        _warnDuplicateRoots(_dupSets)
     if returnBoundingBoxes:
         return finalRoots, finalBoxes
     else:

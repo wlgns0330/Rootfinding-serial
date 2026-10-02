@@ -525,3 +525,52 @@ def test_scaling_the_system_does_not_change_the_roots(scale):
     distances = np.linalg.norm(scaled[:, None, :] - reference[None, :, :], axis=2)
     rows, cols = linear_sum_assignment(distances)
     assert distances[rows, cols].max() < 1e-12
+
+
+############################### duplicate roots ##############################
+
+def _solve_recording_warnings(funcs, a, b, **kwargs):
+    import warnings
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        roots = solve(funcs, a, b, **kwargs)
+    return roots, [str(w.message) for w in caught]
+
+
+def test_duplicate_roots_are_listed_by_set():
+    """y = x**2 and y = -x**2 touch at the origin, so the solver hands back two points it cannot tell
+    apart. The warning names those points, in the coordinates of the search interval, and suggests
+    checking the Jacobian there."""
+    funcs = [lambda x, y: y - x**2, lambda x, y: y + x**2]
+    roots, messages = _solve_recording_warnings(funcs, -1, 1)
+    dupMessages = [m for m in messages if "duplicates" in m]
+    assert len(dupMessages) == 1, messages
+    message = dupMessages[0]
+    assert "Set 1:" in message and "Set 2:" not in message
+    assert "We suggest you check the rank of the Jacobian at these points." in message
+    for root in roots:
+        assert "(" + ", ".join(f"{x:.16g}" for x in root) + ")" in message
+    assert not any("Might Have Duplicate Roots" in m for m in messages)
+
+
+def test_simple_roots_raise_no_duplicate_warning():
+    funcs = [lambda x, y: x - 0.3, lambda x, y: y + 0.2]
+    roots, messages = _solve_recording_warnings(funcs, -1, 1)
+    assert len(roots) == 1
+    assert not any("duplicates" in m for m in messages), messages
+
+
+def test_duplicate_warning_lists_each_set_on_its_own_line():
+    import warnings
+    from yroots.Combined_Solver import _warnDuplicateRoots
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        _warnDuplicateRoots([np.array([[0.5, 0.5], [0.5000000000062979, 0.5]]),
+                             np.array([[1e-8, 2.0, 0.0], [1.1e-8, 2.0, 0.0], [9e-9, 2.0, 0.0]])])
+    assert len(caught) == 1
+    assert str(caught[0].message).splitlines() == [
+        "The roots in each of the following sets might be duplicates of each other:",
+        "  Set 1: (0.5, 0.5), (0.5000000000062979, 0.5)",
+        "  Set 2: (1e-08, 2, 0), (1.1e-08, 2, 0), (9e-09, 2, 0)",
+        "We suggest you check the rank of the Jacobian at these points.",
+    ]
